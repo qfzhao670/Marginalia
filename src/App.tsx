@@ -347,10 +347,9 @@ function App() {
             {filtered.length ? (
               <motion.div className="bookmark-list" layout>
                 <AnimatePresence initial={false} mode="popLayout">
-                {filtered.map((bookmark, index) => (
+                {filtered.map((bookmark) => (
                   <BookmarkCard
                     key={bookmark.id}
-                    index={index}
                     bookmark={bookmark}
                     menuOpen={cardMenu === bookmark.id}
                     expanded={expandedId === bookmark.id}
@@ -460,8 +459,7 @@ function Sidebar({ store, scope, view, onNavigate, onManageTags, onSettings }: {
   )
 }
 
-function BookmarkCard({ index, bookmark, menuOpen, expanded, onOpen, onToggleExpanded, onToggleStar, onToggleMenu, onEditTags, onToggleRead, onDelete }: {
-  index: number
+function BookmarkCard({ bookmark, menuOpen, expanded, onOpen, onToggleExpanded, onToggleStar, onToggleMenu, onEditTags, onToggleRead, onDelete }: {
   bookmark: Bookmark
   menuOpen: boolean
   expanded: boolean
@@ -483,30 +481,35 @@ function BookmarkCard({ index, bookmark, menuOpen, expanded, onOpen, onToggleExp
       exit={{ opacity: 0, scale: .985 }}
       transition={{ layout: { type: 'spring', stiffness: 380, damping: 36 }, opacity: { duration: .16 } }}
     >
-      <span className="entry-index">{String(index + 1).padStart(2, '0')}</span>
       <button className={`bookmark-cover ${bookmark.image ? '' : 'empty'}`} onClick={onOpen} aria-label={`打开 ${bookmark.title}`}>
         {bookmark.image ? <img src={bookmark.image} alt="" /> : <span>{bookmark.domain.charAt(0).toUpperCase()}</span>}
       </button>
       <div className="card-body">
+        <div className="entry-source">
+          <span className="source-mark" aria-hidden="true">{bookmark.domain.charAt(0).toUpperCase()}</span>
+          <span className="domain">{bookmark.domain}</span>
+          <span className={`read-dot ${bookmark.readStatus}`} aria-hidden="true" />
+          <span className="read-state">{bookmark.readStatus === 'read' ? '已读' : '未读'}</span>
+        </div>
         <button className="entry-title" onClick={onOpen}><h3>{bookmark.title}</h3></button>
-        <div className="domain">{bookmark.domain}</div>
         <p>{bookmark.description}</p>
         <div className="entry-detail-row">
           <div className="tag-row">{bookmark.tags.map((tagName) => <span key={tagName}># {tagName}</span>)}</div>
-          <span className="entry-date">{formatDate(bookmark.savedAt)}</span>
-          <span className="read-state">{bookmark.readStatus === 'read' ? '已读' : '未读'}</span>
-          {bookmark.progress > 0 && <div className="entry-progress" aria-label={`阅读进度 ${Math.round(bookmark.progress)}%`}><span style={{ width: `${bookmark.progress}%` }} /></div>}
-          {bookmark.progress > 0 && <span className="progress-value">{Math.round(bookmark.progress)}%</span>}
+          <div className="entry-meta">
+            <span className="entry-date">保存于 {formatDate(bookmark.savedAt)}</span>
+            {bookmark.progress > 0 && <span className="progress-value">已阅读 {Math.round(bookmark.progress)}%</span>}
+          </div>
         </div>
+        {bookmark.progress > 0 && <div className="entry-progress" aria-label={`阅读进度 ${Math.round(bookmark.progress)}%`}><span style={{ width: `${bookmark.progress}%` }} /></div>}
       </div>
       <div className="entry-actions">
-        <button className={`card-action note-toggle ${expanded ? 'active' : ''}`} onClick={onToggleExpanded} title={expanded ? '收起批注预览' : '展开批注预览'}>
+        <button className={`card-action note-toggle ${expanded ? 'active' : ''}`} onClick={onToggleExpanded} title={expanded ? '收起批注预览' : '展开批注预览'} aria-label={expanded ? '收起批注预览' : '展开批注预览'}>
           <FileText />{bookmark.annotations.length > 0 && <span>{bookmark.annotations.length}</span>}
         </button>
-        <button className={`card-action star ${bookmark.starred ? 'active' : ''}`} onClick={onToggleStar} title={bookmark.starred ? '移出收藏' : '加入收藏'}>
+        <button className={`card-action star ${bookmark.starred ? 'active' : ''}`} onClick={onToggleStar} title={bookmark.starred ? '移出收藏' : '加入收藏'} aria-label={bookmark.starred ? '移出收藏' : '加入收藏'}>
           <Star fill={bookmark.starred ? 'currentColor' : 'none'} />
         </button>
-        <button className="card-action" onClick={onToggleMenu} title="更多操作"><MoreHorizontal /></button>
+        <button className="card-action" onClick={onToggleMenu} title="更多操作" aria-label="更多操作"><MoreHorizontal /></button>
       </div>
       {menuOpen && (
         <div className="card-menu" onClick={(event) => event.stopPropagation()}>
