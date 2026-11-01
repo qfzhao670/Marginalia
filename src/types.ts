@@ -4,8 +4,21 @@ export type Annotation = {
   id: string
   type: 'note' | 'highlight'
   text: string
+  note?: string
+  anchor?: string
   color?: 'clay' | 'gold'
   createdAt: string
+}
+
+export type BrowserHighlightPayload = {
+  text: string
+  anchor?: string
+}
+
+export type BrowserConnectorTarget = {
+  id: string
+  label: string
+  targetY: number
 }
 
 export type Bookmark = {

@@ -1,13 +1,15 @@
 import {
   ArrowLeft,
   ArrowRight,
-  BookOpen,
   Check,
   ChevronDown,
   Download,
   ExternalLink,
   FileText,
   Globe2,
+  ImageIcon,
+  Link2,
+  List,
   LoaderCircle,
   MoreHorizontal,
   Plus,
@@ -19,6 +21,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import { FormEvent, MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Annotation, AppStore, Bookmark, BrowserState, PageMetadata, ReadStatus } from './types'
 
@@ -32,6 +35,12 @@ const formatDate = (iso: string) => new Intl.DateTimeFormat('zh-CN', {
   year: 'numeric', month: '2-digit', day: '2-digit',
 }).format(new Date(iso))
 
+const formatNoteDate = (iso: string) => {
+  const date = new Date(iso)
+  const time = new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(date)
+  return `${date.getMonth() + 1} 月 ${date.getDate()} 日　${time}`
+}
+
 const toBounds = (element: HTMLElement) => {
   const rect = element.getBoundingClientRect()
   return {
@@ -40,6 +49,12 @@ const toBounds = (element: HTMLElement) => {
     width: Math.max(0, Math.round(rect.width)),
     height: Math.max(0, Math.round(rect.height)),
   }
+}
+
+const annotationLabels = (annotations: Annotation[]) => {
+  let highlightIndex = 0
+  let noteIndex = 0
+  return annotations.map((annotation) => annotation.type === 'highlight' ? `A${++highlightIndex}` : `B${++noteIndex}`)
 }
 
 function App() {
@@ -55,11 +70,10 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [editingTagsFor, setEditingTagsFor] = useState<string | null>(null)
   const [cardMenu, setCardMenu] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   const [currentId, setCurrentId] = useState<string | null>(null)
   const [notesOpen, setNotesOpen] = useState(true)
   const [browserState, setBrowserState] = useState(EMPTY_BROWSER)
-  const [readerMode, setReaderMode] = useState(false)
-  const [noteDraft, setNoteDraft] = useState('')
   const [toast, setToast] = useState<ToastState | null>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const hydrated = useRef(false)
@@ -107,12 +121,14 @@ function App() {
     }))
   }), [currentId])
 
-  useEffect(() => window.marginalia.browser.onHighlight((text) => {
+  useEffect(() => window.marginalia.browser.onHighlight(({ text, anchor }) => {
     if (!currentId) return
     const annotation: Annotation = {
       id: crypto.randomUUID(),
       type: 'highlight',
       text,
+      note: '',
+      anchor,
       color: 'clay',
       createdAt: new Date().toISOString(),
     }
@@ -122,8 +138,16 @@ function App() {
         ? { ...bookmark, annotations: [annotation, ...bookmark.annotations] }
         : bookmark),
     }))
-    notify('已保存为高亮')
+    setNotesOpen(true)
+    notify('高亮已保存，可以写笔记了')
   }), [currentId, notify])
+
+  useEffect(() => {
+    if (view !== 'reader' || !current) return
+    window.marginalia.browser.highlights(current.annotations
+      .filter((annotation) => annotation.type === 'highlight')
+      .map(({ id, text, anchor }) => ({ id, text, anchor })))
+  }, [view, current?.id, current?.annotations])
 
   useEffect(() => {
     if (view !== 'reader' || !current || !viewportRef.current) {
@@ -144,6 +168,63 @@ function App() {
     }
   }, [view, current?.id, current?.url, current?.offlinePath, notesOpen, notify])
 
+  useEffect(() => {
+    if (view !== 'reader' || !current || !notesOpen || !viewportRef.current) {
+      window.marginalia.browser.connectors([])
+      return
+    }
+
+    const viewport = viewportRef.current
+    const list = document.querySelector<HTMLElement>('.annotation-list')
+    const labels = annotationLabels(current.annotations)
+    let frame = 0
+    let followFrame = 0
+
+    const sync = () => {
+      frame = 0
+      const viewportRect = viewport.getBoundingClientRect()
+      const listRect = list?.getBoundingClientRect()
+      const targets = current.annotations.flatMap((annotation, index) => {
+        if (annotation.type !== 'highlight') return []
+        const card = document.querySelector<HTMLElement>(`[data-annotation-id="${annotation.id}"]`)
+        const badge = card?.querySelector<HTMLElement>('.margin-note-badge')
+        if (!badge) return []
+        const rect = badge.getBoundingClientRect()
+        const centerY = rect.top + rect.height / 2
+        if (listRect && (centerY < listRect.top || centerY > listRect.bottom)) return []
+        return [{ id: annotation.id, label: labels[index], targetY: centerY - viewportRect.top }]
+      })
+      window.marginalia.browser.connectors(targets)
+    }
+
+    const schedule = () => {
+      if (frame) cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(sync)
+    }
+
+    const observer = new ResizeObserver(schedule)
+    observer.observe(viewport)
+    if (list) observer.observe(list)
+    document.querySelectorAll<HTMLElement>('.margin-note').forEach((card) => observer.observe(card))
+    list?.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', schedule)
+
+    const startedAt = performance.now()
+    const followLayout = () => {
+      sync()
+      if (performance.now() - startedAt < 420) followFrame = requestAnimationFrame(followLayout)
+    }
+    followFrame = requestAnimationFrame(followLayout)
+
+    return () => {
+      if (frame) cancelAnimationFrame(frame)
+      if (followFrame) cancelAnimationFrame(followFrame)
+      observer.disconnect()
+      list?.removeEventListener('scroll', schedule)
+      window.removeEventListener('resize', schedule)
+    }
+  }, [view, current?.id, current?.annotations, notesOpen])
+
   const updateBookmark = useCallback((id: string, update: Partial<Bookmark>) => {
     setStore((previous) => ({
       ...previous,
@@ -154,7 +235,6 @@ function App() {
   const openBookmark = useCallback((bookmark: Bookmark) => {
     setCurrentId(bookmark.id)
     setView('reader')
-    setReaderMode(false)
     setCardMenu(null)
     updateBookmark(bookmark.id, { readStatus: 'read' })
   }, [updateBookmark])
@@ -180,7 +260,7 @@ function App() {
     })
   }, [store.bookmarks, scope, status, sort])
 
-  const scopeTitle = scope.type === 'all' ? '全部网页' : scope.type === 'starred' ? '收藏夹' : scope.tag
+  const scopeTitle = scope.type === 'all' ? '资料库' : scope.type === 'starred' ? '收藏' : scope.tag
   const counts = {
     all: store.bookmarks.length,
     unread: store.bookmarks.filter((bookmark) => bookmark.readStatus === 'unread').length,
@@ -194,24 +274,21 @@ function App() {
     notify('网页已删除')
   }
 
-  const addNote = () => {
-    if (!current || !noteDraft.trim()) return
-    const annotation: Annotation = {
-      id: crypto.randomUUID(),
-      type: 'note',
-      text: noteDraft.trim(),
-      createdAt: new Date().toISOString(),
-    }
-    updateBookmark(current.id, { annotations: [annotation, ...current.annotations] })
-    setNoteDraft('')
-  }
-
   const updateAnnotation = (annotation: Annotation) => {
     if (!current) return
-    const next = window.prompt('编辑内容', annotation.text)
+    const next = window.prompt('编辑内容', annotation.type === 'highlight' ? annotation.note ?? '' : annotation.text)
     if (next === null || !next.trim()) return
     updateBookmark(current.id, {
-      annotations: current.annotations.map((item) => item.id === annotation.id ? { ...item, text: next.trim() } : item),
+      annotations: current.annotations.map((item) => item.id === annotation.id
+        ? annotation.type === 'highlight' ? { ...item, note: next.trim() } : { ...item, text: next.trim() }
+        : item),
+    })
+  }
+
+  const updateHighlightNote = (id: string, note: string) => {
+    if (!current) return
+    updateBookmark(current.id, {
+      annotations: current.annotations.map((item) => item.id === id ? { ...item, note } : item),
     })
   }
 
@@ -225,7 +302,7 @@ function App() {
   }
 
   return (
-    <div className="app-shell" onClick={() => cardMenu && setCardMenu(null)}>
+    <div className={`app-shell ${view === 'reader' ? 'reader-shell' : ''}`} onClick={() => cardMenu && setCardMenu(null)}>
       <Sidebar
         store={store}
         scope={scope}
@@ -240,16 +317,16 @@ function App() {
           <header className="library-toolbar">
             <button className={`search-launch ${query ? 'active' : ''}`} onClick={() => setQuery(' ')} aria-label="打开全局搜索">
               <Search size={20} />
-              <span>搜索标题、正文或标签…</span>
+              <span>搜索文章、正文与批注…</span>
               <kbd>⌘ K</kbd>
             </button>
-            <button className="button primary" onClick={() => setAddOpen(true)}><Plus size={19} />添加网页</button>
+            <button className="button primary save-link" onClick={() => setAddOpen(true)}><Plus size={19} />保存链接</button>
           </header>
 
           <section className="library-content">
             <div className="library-heading-row">
               <div>
-                <p className="context-caption">{scope.type === 'tag' ? '标签' : '本地资料库'}</p>
+                <p className="context-caption">{scope.type === 'tag' ? '标签视图' : '本地收藏与页边笔记'}</p>
                 <h1>{scopeTitle}</h1>
               </div>
               <label className="sort-control">
@@ -268,13 +345,17 @@ function App() {
             </div>
 
             {filtered.length ? (
-              <div className="bookmark-grid">
-                {filtered.map((bookmark) => (
+              <motion.div className="bookmark-list" layout>
+                <AnimatePresence initial={false} mode="popLayout">
+                {filtered.map((bookmark, index) => (
                   <BookmarkCard
                     key={bookmark.id}
+                    index={index}
                     bookmark={bookmark}
                     menuOpen={cardMenu === bookmark.id}
+                    expanded={expandedId === bookmark.id}
                     onOpen={() => openBookmark(bookmark)}
+                    onToggleExpanded={() => setExpandedId((id) => id === bookmark.id ? null : bookmark.id)}
                     onToggleStar={() => updateBookmark(bookmark.id, { starred: !bookmark.starred })}
                     onToggleMenu={(event) => {
                       event.stopPropagation()
@@ -285,7 +366,8 @@ function App() {
                     onDelete={() => deleteBookmark(bookmark.id)}
                   />
                 ))}
-              </div>
+                </AnimatePresence>
+              </motion.div>
             ) : (
               <EmptyLibrary onAdd={() => setAddOpen(true)} />
             )}
@@ -307,9 +389,8 @@ function App() {
               <Globe2 size={17} />
               <input name="address" key={browserState.url} defaultValue={browserState.url || current.url} aria-label="网页地址" />
             </form>
-            <button className={`button quiet ${readerMode ? 'active' : ''}`} onClick={async () => setReaderMode(Boolean(await window.marginalia.browser.action('reader')))}><BookOpen size={18} />阅读模式</button>
-            <button className={`button quiet ${notesOpen ? 'active' : ''}`} onClick={() => setNotesOpen((open) => !open)}><FileText size={18} />笔记</button>
-            <button className="button quiet" onClick={() => window.marginalia.browser.action('external')}><ExternalLink size={18} />在外部浏览器打开</button>
+            <button className={`button quiet ${notesOpen ? 'active' : ''}`} onClick={() => setNotesOpen((open) => !open)}><FileText size={18} />页边笔记</button>
+            <button className="button quiet" onClick={() => window.marginalia.browser.action('external')}><ExternalLink size={18} />在浏览器打开</button>
             <button className={`button save-state ${current.starred ? 'active' : ''}`} onClick={() => updateBookmark(current.id, { starred: !current.starred })}>
               <Star size={18} fill={current.starred ? 'currentColor' : 'none'} />{current.starred ? '已收藏' : '收藏'}
             </button>
@@ -318,34 +399,7 @@ function App() {
             <div className="browser-viewport" ref={viewportRef} aria-label="内置网页浏览区域">
               <div className="browser-placeholder"><LoaderCircle className="spin" />正在打开 {current.domain}</div>
             </div>
-            {notesOpen && (
-              <aside className="notes-panel">
-                <div className="notes-heading">
-                  <div><h2>笔记与高亮</h2><span>{current.annotations.length}</span></div>
-                  <button className="icon-button" onClick={() => setNotesOpen(false)} title="关闭笔记栏"><X /></button>
-                </div>
-                <div className="annotation-list">
-                  {current.annotations.length ? current.annotations.map((annotation) => (
-                    <article className={`annotation ${annotation.type}`} key={annotation.id}>
-                      <header>
-                        <span>{annotation.type === 'highlight' ? '高亮' : '笔记'}</span>
-                        <div>
-                          <button onClick={() => updateAnnotation(annotation)}>编辑</button>
-                          <button onClick={() => deleteAnnotation(annotation.id)}>删除</button>
-                        </div>
-                      </header>
-                      <p>{annotation.text}</p>
-                    </article>
-                  )) : (
-                    <div className="empty-notes"><FileText /><p>还没有笔记</p><span>在网页中选中文字并右键，可以保存为高亮。</span></div>
-                  )}
-                </div>
-                <div className="note-composer">
-                  <textarea value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} placeholder="写下你的想法…" />
-                  <button className="button primary" onClick={addNote} disabled={!noteDraft.trim()}>添加笔记</button>
-                </div>
-              </aside>
-            )}
+            {notesOpen && <BrowserNotesPanel bookmark={current} onClose={() => setNotesOpen(false)} onEdit={updateAnnotation} onDelete={deleteAnnotation} onNoteChange={updateHighlightNote} />}
           </div>
           <div className="reader-progress"><span style={{ width: `${current.progress}%` }} /></div>
         </main>
@@ -367,7 +421,7 @@ function App() {
           onClose={() => setEditingTagsFor(null)}
         />
       )}
-      {toast && <div className={`toast ${toast.tone === 'danger' ? 'danger' : ''}`}><Check size={17} />{toast.message}</div>}
+      <AnimatePresence>{toast && <motion.div className={`toast ${toast.tone === 'danger' ? 'danger' : ''}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}><Check size={17} />{toast.message}</motion.div>}</AnimatePresence>
     </div>
   )
 }
@@ -385,10 +439,10 @@ function Sidebar({ store, scope, view, onNavigate, onManageTags, onSettings }: {
       <div className="brand"><span className="brand-mark">M</span><span>Marginalia</span></div>
       <nav className="primary-nav" aria-label="资料库">
         <button className={view === 'library' && scope.type === 'all' ? 'active' : ''} onClick={() => onNavigate({ type: 'all' })}>
-          <Globe2 /><span>全部网页</span><em>{store.bookmarks.length}</em>
+          <FileText /><span>资料库</span><em>{store.bookmarks.length}</em>
         </button>
         <button className={view === 'library' && scope.type === 'starred' ? 'active' : ''} onClick={() => onNavigate({ type: 'starred' })}>
-          <Star /><span>收藏夹</span><em>{store.bookmarks.filter((bookmark) => bookmark.starred).length}</em>
+          <Star /><span>收藏</span><em>{store.bookmarks.filter((bookmark) => bookmark.starred).length}</em>
         </button>
       </nav>
       <div className="sidebar-divider" />
@@ -406,36 +460,53 @@ function Sidebar({ store, scope, view, onNavigate, onManageTags, onSettings }: {
   )
 }
 
-function BookmarkCard({ bookmark, menuOpen, onOpen, onToggleStar, onToggleMenu, onEditTags, onToggleRead, onDelete }: {
+function BookmarkCard({ index, bookmark, menuOpen, expanded, onOpen, onToggleExpanded, onToggleStar, onToggleMenu, onEditTags, onToggleRead, onDelete }: {
+  index: number
   bookmark: Bookmark
   menuOpen: boolean
+  expanded: boolean
   onOpen: () => void
+  onToggleExpanded: () => void
   onToggleStar: () => void
   onToggleMenu: (event: MouseEvent) => void
   onEditTags: () => void
   onToggleRead: () => void
   onDelete: () => void
 }) {
+  const annotation = bookmark.annotations[0]
   return (
-    <article className="bookmark-card" onClick={onOpen} tabIndex={0} onKeyDown={(event) => event.key === 'Enter' && onOpen()}>
-      <div className={`bookmark-cover ${bookmark.image ? '' : 'empty'}`}>
+    <motion.article
+      className={`bookmark-card ${expanded ? 'expanded' : ''}`}
+      layout
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: .985 }}
+      transition={{ layout: { type: 'spring', stiffness: 380, damping: 36 }, opacity: { duration: .16 } }}
+    >
+      <span className="entry-index">{String(index + 1).padStart(2, '0')}</span>
+      <button className={`bookmark-cover ${bookmark.image ? '' : 'empty'}`} onClick={onOpen} aria-label={`打开 ${bookmark.title}`}>
         {bookmark.image ? <img src={bookmark.image} alt="" /> : <span>{bookmark.domain.charAt(0).toUpperCase()}</span>}
-        {bookmark.progress > 0 && <div className="card-progress"><span style={{ width: `${bookmark.progress}%` }} /></div>}
-      </div>
+      </button>
       <div className="card-body">
-        <h3>{bookmark.title}</h3>
+        <button className="entry-title" onClick={onOpen}><h3>{bookmark.title}</h3></button>
         <div className="domain">{bookmark.domain}</div>
         <p>{bookmark.description}</p>
-        <div className="tag-row">{bookmark.tags.map((tagName) => <span key={tagName}># {tagName}</span>)}</div>
-        <footer>
-          <span>{formatDate(bookmark.savedAt)} · {bookmark.readStatus === 'read' ? '已读' : '未读'}</span>
-          <div>
-            <button className={`card-action star ${bookmark.starred ? 'active' : ''}`} onClick={(event) => { event.stopPropagation(); onToggleStar() }} title={bookmark.starred ? '移出收藏夹' : '加入收藏夹'}>
-              <Star fill={bookmark.starred ? 'currentColor' : 'none'} />
-            </button>
-            <button className="card-action" onClick={onToggleMenu} title="更多操作"><MoreHorizontal /></button>
-          </div>
-        </footer>
+        <div className="entry-detail-row">
+          <div className="tag-row">{bookmark.tags.map((tagName) => <span key={tagName}># {tagName}</span>)}</div>
+          <span className="entry-date">{formatDate(bookmark.savedAt)}</span>
+          <span className="read-state">{bookmark.readStatus === 'read' ? '已读' : '未读'}</span>
+          {bookmark.progress > 0 && <div className="entry-progress" aria-label={`阅读进度 ${Math.round(bookmark.progress)}%`}><span style={{ width: `${bookmark.progress}%` }} /></div>}
+          {bookmark.progress > 0 && <span className="progress-value">{Math.round(bookmark.progress)}%</span>}
+        </div>
+      </div>
+      <div className="entry-actions">
+        <button className={`card-action note-toggle ${expanded ? 'active' : ''}`} onClick={onToggleExpanded} title={expanded ? '收起批注预览' : '展开批注预览'}>
+          <FileText />{bookmark.annotations.length > 0 && <span>{bookmark.annotations.length}</span>}
+        </button>
+        <button className={`card-action star ${bookmark.starred ? 'active' : ''}`} onClick={onToggleStar} title={bookmark.starred ? '移出收藏' : '加入收藏'}>
+          <Star fill={bookmark.starred ? 'currentColor' : 'none'} />
+        </button>
+        <button className="card-action" onClick={onToggleMenu} title="更多操作"><MoreHorizontal /></button>
       </div>
       {menuOpen && (
         <div className="card-menu" onClick={(event) => event.stopPropagation()}>
@@ -444,7 +515,115 @@ function BookmarkCard({ bookmark, menuOpen, onOpen, onToggleStar, onToggleMenu, 
           <button className="danger" onClick={onDelete}><Trash2 />删除</button>
         </div>
       )}
-    </article>
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div className="annotation-preview" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ type: 'spring', stiffness: 360, damping: 34 }}>
+            <div className="preview-rail" />
+            <div className="preview-label"><span>A1</span>页边摘录</div>
+            <blockquote>{annotation?.type === 'highlight' ? annotation.note || '这条高亮还没有笔记。' : annotation?.text || bookmark.description}</blockquote>
+            <p className="preview-note">{annotation?.type === 'highlight' ? '高亮关联笔记' : annotation ? '我的笔记' : '等待第一条笔记'}</p>
+            <button className="button small" onClick={onOpen}>进入阅读</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.article>
+  )
+}
+
+
+function NotesHeader({ count, onClose }: { count: number; onClose: () => void }) {
+  return (
+    <div className="notes-heading">
+      <div><FileText className="notes-title-icon" /><h2>页边笔记</h2><em>{count}</em></div>
+      <button className="icon-button" onClick={onClose} title="关闭笔记栏"><X /></button>
+    </div>
+  )
+}
+
+function AnnotationCard({ annotation, label, tags, onEdit, onDelete, onNoteChange, focusNote = false, cardRef }: {
+  annotation: Annotation
+  label: string
+  tags: string[]
+  onEdit: () => void
+  onDelete: () => void
+  onNoteChange: (note: string) => void
+  focusNote?: boolean
+  cardRef?: (element: HTMLElement | null) => void
+}) {
+  const appendToHighlightNote = (value: string) => {
+    const current = annotation.note ?? ''
+    const separator = current && !current.endsWith('\n') ? '\n' : ''
+    onNoteChange(`${current}${separator}${value}`)
+  }
+
+  const addImageLink = () => {
+    const url = window.prompt('输入图片地址')?.trim()
+    if (url) appendToHighlightNote(`![图片](${url})`)
+  }
+
+  const addLink = () => {
+    const url = window.prompt('输入链接地址')?.trim()
+    if (url) appendToHighlightNote(url)
+  }
+
+  return (
+    <motion.article ref={cardRef} data-annotation-id={annotation.id} className={`margin-note ${annotation.type}`} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+      <span className="margin-note-link" aria-hidden="true" />
+      <header>
+        <span className="margin-note-badge">{label}</span>
+        <time>{formatNoteDate(annotation.createdAt)}</time>
+        <button onClick={onEdit} title="编辑笔记"><MoreHorizontal /></button>
+      </header>
+      {annotation.type === 'highlight' ? (
+        <label className="highlight-note-editor">
+          <span><span className="highlight-link-state"><i />关联网页高亮</span><em>自动保存</em></span>
+          <textarea aria-label={`${label} 的笔记`} autoFocus={focusNote && !annotation.note} value={annotation.note ?? ''} onChange={(event) => onNoteChange(event.target.value)} placeholder="写下你的笔记…" />
+        </label>
+      ) : <p>{annotation.text}</p>}
+      <footer>
+        {annotation.type === 'highlight' ? (
+          <div className="note-tools">
+            <button onClick={addImageLink} title="插入图片链接"><ImageIcon /></button>
+            <button onClick={addLink} title="插入链接"><Link2 /></button>
+            <button onClick={() => appendToHighlightNote('• ')} title="插入项目符号"><List /></button>
+          </div>
+        ) : <div className="note-tags">{tags.slice(0, 3).map((tagName) => <span key={tagName}>#{tagName}</span>)}</div>}
+        <button className="delete-note" onClick={onDelete} title="删除笔记"><Trash2 /></button>
+      </footer>
+    </motion.article>
+  )
+}
+
+function EmptyNotes() {
+  return <div className="empty-notes"><FileText /><p>还没有页边笔记</p><span>在网页中拖动选中文字，再点击浮出的“高亮”。</span></div>
+}
+
+function BrowserNotesPanel({ bookmark, onClose, onEdit, onDelete, onNoteChange }: {
+  bookmark: Bookmark
+  onClose: () => void
+  onEdit: (annotation: Annotation) => void
+  onDelete: (id: string) => void
+  onNoteChange: (id: string, note: string) => void
+}) {
+  const labels = annotationLabels(bookmark.annotations)
+  return (
+    <aside className="notes-panel">
+      <NotesHeader count={bookmark.annotations.length} onClose={onClose} />
+      <div className="annotation-list">
+        {bookmark.annotations.length ? bookmark.annotations.map((annotation, index) => (
+          <AnnotationCard
+            key={annotation.id}
+            annotation={annotation}
+            label={labels[index]}
+            tags={bookmark.tags}
+            onEdit={() => onEdit(annotation)}
+            onDelete={() => onDelete(annotation.id)}
+            onNoteChange={(note) => onNoteChange(annotation.id, note)}
+            focusNote={index === 0}
+          />
+        )) : <EmptyNotes />}
+      </div>
+    </aside>
   )
 }
 

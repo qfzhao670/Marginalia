@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('marginalia', {
     open: (url, bounds) => ipcRenderer.invoke('browser:open', { url, bounds }),
     resize: (bounds) => ipcRenderer.invoke('browser:resize', bounds),
     hide: () => ipcRenderer.invoke('browser:hide'),
+    highlights: (items) => ipcRenderer.invoke('browser:highlights', items),
+    connectors: (items) => ipcRenderer.invoke('browser:connectors', items),
     action: (action, payload) => ipcRenderer.invoke('browser:action', { action, payload }),
     onState: (callback) => subscribe('browser:state', callback),
     onProgress: (callback) => subscribe('browser:progress', callback),

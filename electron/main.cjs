@@ -8,7 +8,9 @@ app.setName('Marginalia')
 let mainWindow
 let pageView
 let lastBounds = { x: 0, y: 0, width: 0, height: 0 }
-let readerCssKey
+let highlightCssKey
+let activeHighlights = []
+let activeConnectorTargets = []
 let progressTimer
 
 const DEFAULT_STORE = {
@@ -173,10 +175,106 @@ function startProgressTracking() {
   }, 900)
 }
 
+async function applyPageHighlights(items = activeHighlights) {
+  activeHighlights = Array.isArray(items) ? items : []
+  if (!pageView || pageView.webContents.isDestroyed() || pageView.webContents.isLoading()) return 0
+  try {
+    if (!highlightCssKey) {
+      highlightCssKey = await pageView.webContents.insertCSS(`
+        html, body {
+          scrollbar-width: none !important;
+        }
+        html::-webkit-scrollbar,
+        body::-webkit-scrollbar {
+          width: 0 !important;
+          height: 0 !important;
+          display: none !important;
+        }
+        ::highlight(marginalia-saved-highlight) {
+          background-color: #f4e66a;
+          color: inherit;
+          text-decoration: underline;
+          text-decoration-color: rgba(47, 91, 255, .42);
+          text-decoration-thickness: 1px;
+          text-underline-offset: 2px;
+        }
+      `)
+    }
+    const highlights = activeHighlights.map(({ id, text, anchor }) => ({ id, text: String(text || '').trim(), anchor })).filter(({ text }) => text)
+    const applied = await pageView.webContents.executeJavaScript(`(() => {
+      if (!window.CSS?.highlights || typeof window.Highlight === 'undefined') return 0;
+      const items = ${JSON.stringify(highlights)};
+      const ranges = [];
+      const used = new WeakMap();
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+          const parent = node.parentElement;
+          if (!parent || !node.data.trim()) return NodeFilter.FILTER_REJECT;
+          if (parent.closest('script, style, noscript, textarea, input, [contenteditable="true"]')) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      });
+      const nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+      const resolvePath = (path) => {
+        let node = document.body;
+        for (const index of path || []) {
+          node = node?.childNodes?.[index];
+          if (!node) return null;
+        }
+        return node;
+      };
+      for (const item of items) {
+        if (item.anchor) {
+          try {
+            const anchor = JSON.parse(item.anchor);
+            const startNode = resolvePath(anchor.startPath);
+            const endNode = resolvePath(anchor.endPath);
+            if (startNode && endNode) {
+              const range = document.createRange();
+              range.setStart(startNode, anchor.startOffset);
+              range.setEnd(endNode, anchor.endOffset);
+              if (range.toString().replace(/\\s+/g, ' ').trim() === item.text) {
+                ranges.push(range);
+                continue;
+              }
+            }
+          } catch {}
+        }
+        for (const node of nodes) {
+          const from = used.get(node) || 0;
+          const start = node.data.indexOf(item.text, from);
+          if (start < 0) continue;
+          const range = document.createRange();
+          range.setStart(node, start);
+          range.setEnd(node, start + item.text.length);
+          ranges.push(range);
+          used.set(node, start + item.text.length);
+          break;
+        }
+      }
+      CSS.highlights.delete('marginalia-saved-highlight');
+      if (ranges.length) CSS.highlights.set('marginalia-saved-highlight', new Highlight(...ranges));
+      return ranges.length;
+    })()`, true)
+    pageView.webContents.send('page:highlights', highlights)
+    return applied
+  } catch {
+    return 0
+  }
+}
+
+function sendConnectorTargets(items = activeConnectorTargets) {
+  activeConnectorTargets = Array.isArray(items) ? items : []
+  if (!pageView || pageView.webContents.isDestroyed() || pageView.webContents.isLoading()) return
+  pageView.webContents.send('page:connector-targets', activeConnectorTargets)
+}
+
 function ensurePageView() {
   if (pageView && !pageView.webContents.isDestroyed()) return pageView
   pageView = new WebContentsView({
     webPreferences: {
+      preload: path.join(__dirname, 'page-preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -197,7 +295,11 @@ function ensurePageView() {
     event.preventDefault()
   })
   pageView.webContents.on('did-start-loading', emitBrowserState)
-  pageView.webContents.on('did-stop-loading', emitBrowserState)
+  pageView.webContents.on('did-stop-loading', () => {
+    highlightCssKey = undefined
+    emitBrowserState()
+    applyPageHighlights().then(() => sendConnectorTargets()).catch(() => {})
+  })
   pageView.webContents.on('did-navigate', emitBrowserState)
   pageView.webContents.on('did-navigate-in-page', emitBrowserState)
   pageView.webContents.on('page-title-updated', emitBrowserState)
@@ -205,10 +307,6 @@ function ensurePageView() {
     const selection = params.selectionText?.trim()
     if (!selection) return
     Menu.buildFromTemplate([
-      {
-        label: '保存为高亮',
-        click: () => mainWindow.webContents.send('browser:highlight', selection.slice(0, 1000)),
-      },
       { role: 'copy', label: '复制' },
     ]).popup({ window: mainWindow })
   })
@@ -267,8 +365,32 @@ ipcMain.handle('browser:resize', (_event, bounds) => {
   if (pageView && !pageView.webContents.isDestroyed()) pageView.setBounds(bounds)
 })
 
+ipcMain.handle('browser:highlights', (_event, items) => applyPageHighlights(items))
+
+ipcMain.handle('browser:connectors', (event, items) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) return false
+  const targets = Array.isArray(items) ? items.map((item) => ({
+    id: String(item?.id || '').slice(0, 100),
+    label: String(item?.label || '').slice(0, 8),
+    targetY: Number.isFinite(item?.targetY) ? item.targetY : 0,
+  })).filter(({ id, label }) => id && label) : []
+  sendConnectorTargets(targets)
+  return true
+})
+
+ipcMain.on('page:save-highlight', async (event, payload) => {
+  if (!pageView || event.sender !== pageView.webContents || !mainWindow) return
+  const text = String(payload?.text || '').replace(/\s+/g, ' ').trim().slice(0, 1000)
+  if (!text) return
+  const anchor = typeof payload?.anchor === 'string' ? payload.anchor.slice(0, 8000) : undefined
+  const highlight = { id: `pending-${Date.now()}`, text, anchor }
+  await applyPageHighlights([...activeHighlights, highlight])
+  mainWindow.webContents.send('browser:highlight', { text, anchor })
+})
+
 ipcMain.handle('browser:hide', () => {
   clearInterval(progressTimer)
+  activeConnectorTargets = []
   if (pageView && !pageView.webContents.isDestroyed()) pageView.setBounds({ x: 0, y: 0, width: 0, height: 0 })
 })
 
@@ -280,19 +402,6 @@ ipcMain.handle('browser:action', async (_event, { action, payload }) => {
   if (action === 'reload') pageView.webContents.reload()
   if (action === 'navigate' && payload) await pageView.webContents.loadURL(normalizeUrl(payload))
   if (action === 'external') await shell.openExternal(pageView.webContents.getURL())
-  if (action === 'reader') {
-    if (readerCssKey) {
-      await pageView.webContents.removeInsertedCSS(readerCssKey)
-      readerCssKey = undefined
-      return false
-    }
-    readerCssKey = await pageView.webContents.insertCSS(`
-      header, nav, aside, footer, [role="banner"], [role="navigation"], .advertisement, .ads, .sidebar { display: none !important; }
-      body { max-width: 780px !important; margin: 0 auto !important; padding: 48px 36px !important; background: #fbfaf6 !important; color: #222622 !important; font-family: Georgia, "Songti SC", serif !important; line-height: 1.85 !important; }
-      img { max-width: 100% !important; height: auto !important; }
-    `)
-    return true
-  }
   emitBrowserState()
   return true
 })
