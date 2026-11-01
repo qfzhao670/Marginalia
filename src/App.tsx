@@ -7,9 +7,6 @@ import {
   ExternalLink,
   FileText,
   Globe2,
-  ImageIcon,
-  Link2,
-  List,
   LoaderCircle,
   MoreHorizontal,
   Plus,
@@ -22,7 +19,7 @@ import {
   X,
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { FormEvent, MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FormEvent, MouseEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Annotation, AppStore, Bookmark, BrowserState, PageMetadata, ReadStatus } from './types'
 
 type LibraryScope = { type: 'all' } | { type: 'starred' } | { type: 'tag'; tag: string }
@@ -56,6 +53,12 @@ const annotationLabels = (annotations: Annotation[]) => {
   let noteIndex = 0
   return annotations.map((annotation) => annotation.type === 'highlight' ? `A${++highlightIndex}` : `B${++noteIndex}`)
 }
+
+const sortAnnotationsByCreatedAt = (annotations: Annotation[]) => [...annotations].sort((left, right) => {
+  const leftTime = new Date(left.createdAt).getTime()
+  const rightTime = new Date(right.createdAt).getTime()
+  return (Number.isNaN(leftTime) ? 0 : leftTime) - (Number.isNaN(rightTime) ? 0 : rightTime)
+})
 
 function App() {
   const [store, setStore] = useState<AppStore>(EMPTY_STORE)
@@ -135,7 +138,7 @@ function App() {
     setStore((previous) => ({
       ...previous,
       bookmarks: previous.bookmarks.map((bookmark) => bookmark.id === currentId
-        ? { ...bookmark, annotations: [annotation, ...bookmark.annotations] }
+        ? { ...bookmark, annotations: [...bookmark.annotations, annotation] }
         : bookmark),
     }))
     setNotesOpen(true)
@@ -176,7 +179,8 @@ function App() {
 
     const viewport = viewportRef.current
     const list = document.querySelector<HTMLElement>('.annotation-list')
-    const labels = annotationLabels(current.annotations)
+    const orderedAnnotations = sortAnnotationsByCreatedAt(current.annotations)
+    const labels = annotationLabels(orderedAnnotations)
     let frame = 0
     let followFrame = 0
 
@@ -184,7 +188,7 @@ function App() {
       frame = 0
       const viewportRect = viewport.getBoundingClientRect()
       const listRect = list?.getBoundingClientRect()
-      const targets = current.annotations.flatMap((annotation, index) => {
+      const targets = orderedAnnotations.flatMap((annotation, index) => {
         if (annotation.type !== 'highlight') return []
         const card = document.querySelector<HTMLElement>(`[data-annotation-id="${annotation.id}"]`)
         const badge = card?.querySelector<HTMLElement>('.margin-note-badge')
@@ -534,31 +538,22 @@ function BookmarkCard({ bookmark, menuOpen, expanded, onOpen, onToggleExpanded, 
 }
 
 
-function AnnotationCard({ annotation, label, tags, onEdit, onDelete, onNoteChange, focusNote = false, cardRef }: {
+function AnnotationCard({ annotation, label, onEdit, onDelete, onNoteChange, focusNote = false, cardRef }: {
   annotation: Annotation
   label: string
-  tags: string[]
   onEdit: () => void
   onDelete: () => void
   onNoteChange: (note: string) => void
   focusNote?: boolean
   cardRef?: (element: HTMLElement | null) => void
 }) {
-  const appendToHighlightNote = (value: string) => {
-    const current = annotation.note ?? ''
-    const separator = current && !current.endsWith('\n') ? '\n' : ''
-    onNoteChange(`${current}${separator}${value}`)
-  }
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const addImageLink = () => {
-    const url = window.prompt('输入图片地址')?.trim()
-    if (url) appendToHighlightNote(`![图片](${url})`)
-  }
-
-  const addLink = () => {
-    const url = window.prompt('输入链接地址')?.trim()
-    if (url) appendToHighlightNote(url)
-  }
+  useLayoutEffect(() => {
+    if (!textareaRef.current) return
+    textareaRef.current.style.height = 'auto'
+    textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
+  }, [annotation.note])
 
   return (
     <motion.article ref={cardRef} data-annotation-id={annotation.id} className={`margin-note ${annotation.type}`} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
@@ -566,24 +561,17 @@ function AnnotationCard({ annotation, label, tags, onEdit, onDelete, onNoteChang
       <header>
         <span className="margin-note-badge">{label}</span>
         <time>{formatNoteDate(annotation.createdAt)}</time>
-        <button onClick={onEdit} title="编辑笔记"><MoreHorizontal /></button>
+        <div className="note-actions">
+          {annotation.type === 'note' && <button onClick={onEdit} title="编辑笔记"><MoreHorizontal /></button>}
+          <button className="delete-note" onClick={onDelete} title="删除笔记"><Trash2 /></button>
+        </div>
       </header>
       {annotation.type === 'highlight' ? (
         <label className="highlight-note-editor">
-          <span><span className="highlight-link-state"><i />关联网页高亮</span><em>自动保存</em></span>
-          <textarea aria-label={`${label} 的笔记`} autoFocus={focusNote && !annotation.note} value={annotation.note ?? ''} onChange={(event) => onNoteChange(event.target.value)} placeholder="写下你的笔记…" />
+          <span className="highlight-quote">{annotation.text}</span>
+          <textarea ref={textareaRef} rows={1} aria-label={`${label} 的笔记`} autoFocus={focusNote && !annotation.note} value={annotation.note ?? ''} onChange={(event) => onNoteChange(event.target.value)} placeholder="写下笔记…" />
         </label>
       ) : <p>{annotation.text}</p>}
-      <footer>
-        {annotation.type === 'highlight' ? (
-          <div className="note-tools">
-            <button onClick={addImageLink} title="插入图片链接"><ImageIcon /></button>
-            <button onClick={addLink} title="插入链接"><Link2 /></button>
-            <button onClick={() => appendToHighlightNote('• ')} title="插入项目符号"><List /></button>
-          </div>
-        ) : <div className="note-tags">{tags.slice(0, 3).map((tagName) => <span key={tagName}>#{tagName}</span>)}</div>}
-        <button className="delete-note" onClick={onDelete} title="删除笔记"><Trash2 /></button>
-      </footer>
     </motion.article>
   )
 }
@@ -598,20 +586,20 @@ function BrowserNotesPanel({ bookmark, onEdit, onDelete, onNoteChange }: {
   onDelete: (id: string) => void
   onNoteChange: (id: string, note: string) => void
 }) {
-  const labels = annotationLabels(bookmark.annotations)
+  const orderedAnnotations = sortAnnotationsByCreatedAt(bookmark.annotations)
+  const labels = annotationLabels(orderedAnnotations)
   return (
     <aside className="notes-panel">
       <div className="annotation-list">
-        {bookmark.annotations.length ? bookmark.annotations.map((annotation, index) => (
+        {orderedAnnotations.length ? orderedAnnotations.map((annotation, index) => (
           <AnnotationCard
             key={annotation.id}
             annotation={annotation}
             label={labels[index]}
-            tags={bookmark.tags}
             onEdit={() => onEdit(annotation)}
             onDelete={() => onDelete(annotation.id)}
             onNoteChange={(note) => onNoteChange(annotation.id, note)}
-            focusNote={index === 0}
+            focusNote={index === orderedAnnotations.length - 1}
           />
         )) : <EmptyNotes />}
       </div>
