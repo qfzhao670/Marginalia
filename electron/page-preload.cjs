@@ -16,11 +16,11 @@ window.addEventListener('DOMContentLoaded', () => {
   connectorStyle.textContent = `
     :host { display: block; width: 100%; height: 100%; }
     svg { display: block; width: 100%; height: 100%; overflow: hidden; }
-    path { fill: none; stroke: #5b5cf6; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-    circle { fill: #5b5cf6; }
-    rect { fill: rgba(255,255,255,.99); stroke: #b8b5ff; stroke-width: 1; filter: drop-shadow(0 2px 5px rgba(75,64,167,.12)); vector-effect: non-scaling-stroke; }
+    path { fill: none; stroke: #2f5bff; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+    circle { fill: #2f5bff; }
+    rect { fill: rgba(255,255,255,.99); stroke: #aebdf7; stroke-width: 1; filter: drop-shadow(0 2px 5px rgba(20,33,61,.12)); vector-effect: non-scaling-stroke; }
     text {
-      fill: #5354e6;
+      fill: #244bdb;
       font: 650 11px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
       text-anchor: middle;
       dominant-baseline: central;

@@ -399,7 +399,7 @@ function App() {
             <div className="browser-viewport" ref={viewportRef} aria-label="内置网页浏览区域">
               <div className="browser-placeholder"><LoaderCircle className="spin" />正在打开 {current.domain}</div>
             </div>
-            {notesOpen && <BrowserNotesPanel bookmark={current} onClose={() => setNotesOpen(false)} onEdit={updateAnnotation} onDelete={deleteAnnotation} onNoteChange={updateHighlightNote} />}
+            {notesOpen && <BrowserNotesPanel bookmark={current} onEdit={updateAnnotation} onDelete={deleteAnnotation} onNoteChange={updateHighlightNote} />}
           </div>
           <div className="reader-progress"><span style={{ width: `${current.progress}%` }} /></div>
         </main>
@@ -531,15 +531,6 @@ function BookmarkCard({ index, bookmark, menuOpen, expanded, onOpen, onToggleExp
 }
 
 
-function NotesHeader({ count, onClose }: { count: number; onClose: () => void }) {
-  return (
-    <div className="notes-heading">
-      <div><FileText className="notes-title-icon" /><h2>页边笔记</h2><em>{count}</em></div>
-      <button className="icon-button" onClick={onClose} title="关闭笔记栏"><X /></button>
-    </div>
-  )
-}
-
 function AnnotationCard({ annotation, label, tags, onEdit, onDelete, onNoteChange, focusNote = false, cardRef }: {
   annotation: Annotation
   label: string
@@ -598,9 +589,8 @@ function EmptyNotes() {
   return <div className="empty-notes"><FileText /><p>还没有页边笔记</p><span>在网页中拖动选中文字，再点击浮出的“高亮”。</span></div>
 }
 
-function BrowserNotesPanel({ bookmark, onClose, onEdit, onDelete, onNoteChange }: {
+function BrowserNotesPanel({ bookmark, onEdit, onDelete, onNoteChange }: {
   bookmark: Bookmark
-  onClose: () => void
   onEdit: (annotation: Annotation) => void
   onDelete: (id: string) => void
   onNoteChange: (id: string, note: string) => void
@@ -608,7 +598,6 @@ function BrowserNotesPanel({ bookmark, onClose, onEdit, onDelete, onNoteChange }
   const labels = annotationLabels(bookmark.annotations)
   return (
     <aside className="notes-panel">
-      <NotesHeader count={bookmark.annotations.length} onClose={onClose} />
       <div className="annotation-list">
         {bookmark.annotations.length ? bookmark.annotations.map((annotation, index) => (
           <AnnotationCard
