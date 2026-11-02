@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { AppStore, BrowserConnectorTarget, BrowserHighlightPayload, BrowserState, PageMetadata, ViewBounds } from './types'
+import type { AiConfig, AiMessage, AppStore, BrowserConnectorTarget, BrowserHighlightPayload, BrowserState, PageMetadata, ViewBounds } from './types'
 
 declare global {
   interface Window {
@@ -18,10 +18,22 @@ declare global {
         hide: () => Promise<void>
         highlights: (items: Array<{ id: string; text: string; anchor?: string }>) => Promise<number>
         connectors: (items: BrowserConnectorTarget[]) => Promise<boolean>
+        aiThread: (messages: AiMessage[]) => Promise<boolean>
         action: (action: string, payload?: string) => Promise<unknown>
         onState: (callback: (state: BrowserState) => void) => () => void
         onProgress: (callback: (progress: number) => void) => () => void
         onHighlight: (callback: (highlight: BrowserHighlightPayload) => void) => () => void
+        onAiExchange: (callback: (exchange: { user: AiMessage; assistant: AiMessage }) => void) => () => void
+        onAiClear: (callback: () => void) => () => void
+        onAiReady: (callback: () => void) => () => void
+      }
+      ai: {
+        getConfig: () => Promise<AiConfig>
+        revealKey: () => Promise<{ apiKey: string }>
+        setConfig: (config: { baseUrl: string; model: string; apiKey?: string }) => Promise<AiConfig>
+      }
+      clipboard: {
+        readText: () => Promise<string>
       }
       offline: {
         save: (id: string, url: string) => Promise<{ path: string }>

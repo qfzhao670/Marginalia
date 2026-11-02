@@ -292,6 +292,17 @@ h1 { margin: 0; font-family: var(--serif); font-size: clamp(34px, 3.2vw, 48px); 
 .settings-section:last-child { border-bottom: 0; }
 .settings-section h3 { margin: 0 0 5px; font-family: var(--serif); }
 .settings-section p { margin: 0 0 14px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.ai-settings-section form { display: block; }
+.ai-settings-section .field-label { margin-top: 8px; }
+.ai-settings-section .field-label span { color: var(--muted); font-size: 10px; font-weight: 400; }
+.secret-field { position: relative; }
+.secret-field .text-field { padding-right: 82px; }
+.secret-field button { position: absolute; top: 4px; right: 5px; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 4px; color: #6c7789; background: transparent; }
+.secret-field button:first-of-type:not(:last-of-type) { right: 41px; }
+.secret-field button:hover { color: var(--blue); background: var(--blue-soft); }
+.secret-field button svg { width: 16px; height: 16px; }
+.ai-save-button { margin-top: 15px; }
+.ai-save-button svg { width: 16px; height: 16px; }
 .storage-stat { display: flex; align-items: center; gap: 7px; color: #5e6879; }
 .storage-stat span { color: var(--blue); font-size: 19px; font-weight: 650; }
 .storage-stat i { width: 1px; height: 17px; margin: 0 4px; background: var(--line); }

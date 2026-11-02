@@ -47,27 +47,20 @@ window.addEventListener('DOMContentLoaded', () => {
   const style = document.createElement('style')
   style.textContent = `
     :host { color-scheme: light; }
-    button {
+    .selection-bar {
       position: relative;
       display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      height: 34px;
-      padding: 0 12px 0 10px;
+      padding: 3px;
       border: 1px solid #c9d1df;
       border-radius: 6px;
-      color: #26344d;
       background: rgba(255, 255, 255, .98);
       box-shadow: 0 8px 22px rgba(20, 33, 61, .14), 0 1px 3px rgba(20, 33, 61, .08);
-      font: 600 12px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
-      cursor: pointer;
       pointer-events: auto;
       -webkit-font-smoothing: antialiased;
       animation: highlight-tool-in 140ms cubic-bezier(.2, .8, .2, 1);
-      transition: color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
     }
-    button::before,
-    button::after {
+    .selection-bar::before,
+    .selection-bar::after {
       content: "";
       position: absolute;
       left: 50%;
@@ -77,41 +70,45 @@ window.addEventListener('DOMContentLoaded', () => {
       pointer-events: none;
       transform: translateX(-50%);
     }
-    button::before {
+    .selection-bar::before {
       border: 6px solid transparent;
       border-top-color: #c9d1df;
     }
-    button::after {
+    .selection-bar::after {
       margin-top: -1px;
       border: 5px solid transparent;
       border-top-color: white;
     }
-    button:hover {
-      color: #244bdb;
-      border-color: #91a7f8;
-      box-shadow: 0 9px 24px rgba(35, 67, 174, .16), 0 1px 3px rgba(20, 33, 61, .07);
-      transform: translateY(-1px);
+    button {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 30px;
+      padding: 0 9px;
+      border: 0;
+      border-radius: 4px;
+      color: #26344d;
+      background: transparent;
+      font: 600 12px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+      cursor: pointer;
+      transition: color 120ms ease, background 120ms ease;
     }
-    button:hover::before { border-top-color: #91a7f8; }
-    button:active { transform: translateY(0) scale(.98); }
-    button[data-placement="below"]::before,
-    button[data-placement="below"]::after {
+    button:hover { color: #244bdb; background: #edf1ff; }
+    button + button { border-left: 1px solid #e2e6ed; border-radius: 0 4px 4px 0; }
+    .selection-bar[data-placement="below"]::before,
+    .selection-bar[data-placement="below"]::after {
       top: auto;
       bottom: 100%;
     }
-    button[data-placement="below"]::before {
+    .selection-bar[data-placement="below"]::before {
       border-top-color: transparent;
       border-bottom-color: #c9d1df;
     }
-    button[data-placement="below"]::after {
+    .selection-bar[data-placement="below"]::after {
       margin-top: 0;
       margin-bottom: -1px;
       border-top-color: transparent;
       border-bottom-color: white;
-    }
-    button[data-placement="below"]:hover::before {
-      border-top-color: transparent;
-      border-bottom-color: #91a7f8;
     }
     i {
       position: relative;
@@ -141,11 +138,234 @@ window.addEventListener('DOMContentLoaded', () => {
       button { animation: none; transition: none; }
     }
   `
-  const button = document.createElement('button')
-  button.type = 'button'
-  button.innerHTML = '<i></i><span>高亮</span>'
-  shadow.append(style, button)
+  const selectionBar = document.createElement('div')
+  selectionBar.className = 'selection-bar'
+  const highlightButton = document.createElement('button')
+  highlightButton.type = 'button'
+  highlightButton.innerHTML = '<i></i><span>高亮</span>'
+  const askButton = document.createElement('button')
+  askButton.type = 'button'
+  askButton.textContent = '问伴航'
+  selectionBar.append(highlightButton, askButton)
+  shadow.append(style, selectionBar)
   document.documentElement.appendChild(host)
+
+  const aiHost = document.createElement('div')
+  aiHost.setAttribute('data-marginalia-ai-companion', '')
+  Object.assign(aiHost.style, {
+    position: 'fixed',
+    zIndex: '2147483646',
+    left: '0',
+    top: '0',
+    visibility: 'hidden',
+    pointerEvents: 'none',
+  })
+  const aiShadow = aiHost.attachShadow({ mode: 'closed' })
+  const aiStyle = document.createElement('style')
+  aiStyle.textContent = `
+    :host { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif; }
+    * { box-sizing: border-box; }
+    .companion { position: relative; width: 60px; height: 60px; pointer-events: auto; }
+    .orb {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: 60px;
+      height: 60px;
+      margin-left: auto;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      color: white;
+      background: transparent;
+      box-shadow: 0 14px 34px rgba(20,33,61,.3), 0 3px 9px rgba(20,33,61,.16);
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      transition: transform 160ms cubic-bezier(.2,.8,.2,1), box-shadow 160ms ease;
+    }
+    .orb::before {
+      content: "";
+      position: absolute;
+      inset: -5px;
+      z-index: -1;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(78,112,255,.3), rgba(47,91,255,0) 68%);
+      animation: orb-aura 3.8s ease-in-out infinite;
+    }
+    .orb::after {
+      content: "";
+      position: absolute;
+      inset: 3px;
+      z-index: 2;
+      border: 1px solid rgba(255,255,255,.58);
+      border-radius: 50%;
+      background: linear-gradient(145deg, rgba(255,255,255,.25), transparent 30%, transparent 70%, rgba(9,24,67,.14));
+      box-shadow: inset 0 0 0 4px rgba(255,255,255,.055), inset 0 -9px 18px rgba(8,23,68,.2);
+      pointer-events: none;
+    }
+    .orb-canvas { position: absolute; inset: 0; width: 60px; height: 60px; border-radius: 50%; }
+    .orb:hover { transform: translateY(-2px) scale(1.035); box-shadow: 0 18px 38px rgba(20,33,61,.34), 0 4px 10px rgba(20,33,61,.18); }
+    .orb:active { transform: scale(.98); }
+    .companion.dragging .orb { cursor: grabbing; transform: scale(1.055); transition: none; box-shadow: 0 20px 42px rgba(20,33,61,.36); }
+    .orb:focus-visible, button:focus-visible { outline: 2px solid #2f5bff; outline-offset: 3px; }
+    .orb-mark { position: relative; z-index: 3; color: rgba(255,255,255,.96); font: 700 22px/1 Georgia, serif; letter-spacing: -.08em; text-shadow: 0 1px 5px rgba(6,22,67,.42); transform: translateX(-1px); pointer-events: none; }
+    .orb-note { position: absolute; right: 2px; bottom: 4px; z-index: 4; width: 15px; height: 12px; border: 2px solid #2f5bff; border-radius: 2px; background: #f4e66a; box-shadow: 0 2px 5px rgba(20,33,61,.2); transform: rotate(-7deg); pointer-events: none; }
+    .companion.thinking .orb::before { animation-duration: 1.15s; }
+    .companion.thinking .orb-note { animation: note-pulse .9s ease-in-out infinite; }
+    .panel {
+      position: absolute;
+      right: 0;
+      bottom: 74px;
+      display: grid;
+      grid-template-rows: auto minmax(0,1fr) auto;
+      width: min(390px, calc(100vw - 32px));
+      height: min(610px, calc(100vh - 104px));
+      overflow: hidden;
+      border: 1px solid #cbd2de;
+      border-radius: 14px 14px 5px 14px;
+      background: rgba(251,252,253,.985);
+      box-shadow: 0 24px 70px rgba(20,33,61,.24), 0 4px 14px rgba(20,33,61,.1);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(12px) scale(.975);
+      transform-origin: right bottom;
+      transition: opacity 170ms ease, transform 190ms cubic-bezier(.2,.8,.2,1), visibility 170ms;
+    }
+    .companion[data-panel-h="right"] .panel { right: auto; left: 0; transform-origin: left bottom; }
+    .companion[data-panel-v="below"] .panel { top: 74px; bottom: auto; transform-origin: right top; }
+    .companion[data-panel-h="right"][data-panel-v="below"] .panel { transform-origin: left top; }
+    .companion.open .panel { opacity: 1; visibility: visible; transform: translateY(0) scale(1); }
+    .companion.open .orb { box-shadow: 0 0 0 4px rgba(47,91,255,.16), 0 12px 30px rgba(20,33,61,.25); }
+    .panel-header { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; min-height: 62px; padding: 10px 11px 10px 16px; border-bottom: 1px solid #dfe3ea; background: #fff; }
+    .header-glyph { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 50%; color: white; background: #14213d; font: 700 14px/1 Georgia, serif; }
+    .panel-title { min-width: 0; }
+    .panel-title strong { display: block; color: #14213d; font-family: "Songti SC", "STSong", Georgia, serif; font-size: 16px; }
+    .panel-title span { display: block; margin-top: 2px; overflow: hidden; color: #7a8495; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .header-actions { display: flex; gap: 2px; }
+    .icon-button { display: grid; place-items: center; width: 31px; height: 31px; padding: 0; border: 0; border-radius: 5px; color: #6e7889; background: transparent; cursor: pointer; }
+    .icon-button:hover { color: #244bdb; background: #edf1ff; }
+    .companion.settings-mode .header-actions .settings { color: #244bdb; background: #edf1ff; }
+    .companion.settings-mode .header-actions .clear { display: none; }
+    .companion.settings-mode .thread, .companion.settings-mode .composer-shell { display: none; }
+    .thread { min-height: 0; padding: 16px 16px 20px; overflow: auto; scrollbar-width: thin; scrollbar-color: #cfd6e1 transparent; }
+    .welcome { padding: 9px 2px 4px; }
+    .welcome h2 { margin: 0; color: #14213d; font-family: "Songti SC", "STSong", Georgia, serif; font-size: 22px; line-height: 1.3; }
+    .welcome p { margin: 8px 0 17px; color: #667085; font-size: 12px; line-height: 1.7; }
+    .quick-actions { display: grid; gap: 8px; }
+    .quick-action { display: grid; grid-template-columns: 26px 1fr; align-items: center; gap: 9px; min-height: 46px; padding: 7px 10px; border: 1px solid #dfe3ea; border-radius: 6px; color: #33405a; background: #fff; text-align: left; font: 550 12px/1.4 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; cursor: pointer; }
+    .quick-action:hover { border-color: #aebdf7; color: #244bdb; background: #f7f9ff; }
+    .quick-action b { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 4px; color: #244bdb; background: #e9efff; font-family: Georgia, serif; }
+    .message { position: relative; margin: 0 0 18px; padding-left: 14px; }
+    .message::before { content: ""; position: absolute; top: 3px; bottom: 1px; left: 0; width: 2px; background: #2f5bff; }
+    .message.user::before { background: #f4e66a; }
+    .message-label { margin-bottom: 5px; color: #778195; font-size: 10px; }
+    .message-body { color: #29364d; font-family: "Songti SC", "STSong", Georgia, serif; font-size: 13px; line-height: 1.72; overflow-wrap: anywhere; }
+    .message.user .message-body { color: #3d485a; white-space: pre-wrap; }
+    .message-body > :first-child { margin-top: 0; }
+    .message-body > :last-child { margin-bottom: 0; }
+    .message-body p { margin: 0 0 10px; }
+    .message-body h1, .message-body h2, .message-body h3, .message-body h4 { margin: 18px 0 8px; color: #14213d; font-family: "Songti SC", "STSong", Georgia, serif; font-weight: 700; line-height: 1.38; }
+    .message-body h1 { font-size: 18px; }
+    .message-body h2 { padding-bottom: 5px; border-bottom: 1px solid #e4e7ec; font-size: 16px; }
+    .message-body h3 { font-size: 14px; }
+    .message-body h4 { font-size: 13px; }
+    .message-body ul, .message-body ol { margin: 7px 0 12px; padding-left: 20px; }
+    .message-body li { margin: 4px 0; padding-left: 2px; }
+    .message-body strong { color: #1e2c44; font-weight: 700; }
+    .message-body em { color: #4f5d73; }
+    .message-body code { padding: 2px 4px; border: 1px solid #e0e5ed; border-radius: 3px; color: #244bdb; background: #f2f5fa; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .message-body pre { margin: 10px 0 12px; padding: 11px 12px; overflow: auto; border: 1px solid #dce2eb; border-radius: 6px; background: #f4f6f9; }
+    .message-body pre code { padding: 0; border: 0; color: #2d3b52; background: transparent; white-space: pre; }
+    .message-body blockquote { margin: 10px 0 12px; padding: 7px 10px; border-left: 3px solid #91a7f8; color: #56647a; background: #f4f7ff; }
+    .message-body blockquote p { margin: 0; }
+    .message-body a { color: #244bdb; text-decoration: underline; text-decoration-color: rgba(36,75,219,.35); text-underline-offset: 2px; }
+    .message-body hr { height: 1px; margin: 14px 0; border: 0; background: #dfe3ea; }
+    .message-body table { width: 100%; margin: 10px 0 12px; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; font-size: 10px; line-height: 1.5; }
+    .message-body th, .message-body td { padding: 6px 7px; border: 1px solid #dfe3ea; text-align: left; vertical-align: top; }
+    .message-body th { color: #26344d; background: #f1f4f8; font-weight: 650; }
+    .message-body.streaming::after { content: ""; display: inline-block; width: 6px; height: 13px; margin-left: 2px; vertical-align: -2px; background: #2f5bff; animation: stream-caret .8s steps(1) infinite; }
+    .source { display: -webkit-box; margin: 7px 0 0; padding: 6px 8px; overflow: hidden; border-left: 2px solid #dfc934; color: #6c6f75; background: #fffdf1; font-size: 10px; line-height: 1.5; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    .thinking { display: inline-flex; gap: 4px; padding: 7px 0; }
+    .thinking i { width: 5px; height: 5px; border-radius: 50%; background: #2f5bff; animation: blink 1s infinite ease-in-out; }
+    .thinking i:nth-child(2) { animation-delay: .15s; }.thinking i:nth-child(3) { animation-delay: .3s; }
+    .context-banner { display: none; align-items: center; gap: 7px; margin: 0 12px 8px; padding: 7px 9px; border-left: 2px solid #dfc934; color: #687184; background: #fffdf1; font-size: 10px; }
+    .context-banner.visible { display: flex; }
+    .context-banner span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .context-banner button { padding: 0; border: 0; color: #687184; background: transparent; cursor: pointer; }
+    .composer-shell { padding: 11px 0 5px; border-top: 1px solid #dfe3ea; background: #fff; }
+    .composer { display: grid; grid-template-columns: minmax(0,1fr) 38px; align-items: center; gap: 8px; min-height: 50px; margin: 0 10px 7px; padding: 5px 5px 5px 12px; border: 1px solid #cbd2de; border-radius: 10px; background: #fff; transition: border-color 140ms ease, box-shadow 140ms ease; }
+    .composer:focus-within { border-color: #6f8cff; box-shadow: 0 0 0 3px rgba(47,91,255,.11); }
+    textarea { display: block; width: 100%; min-height: 34px; max-height: 96px; padding: 8px 0; resize: none; overflow-y: auto; border: 0; outline: 0 !important; box-shadow: none !important; color: #26344d; background: transparent; font: 12px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+    textarea::placeholder { color: #9aa2af; }
+    .send { display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border: 0; border-radius: 8px; color: white; background: #2f5bff; box-shadow: 0 4px 10px rgba(47,91,255,.22); cursor: pointer; }
+    .send:hover:not(:disabled) { background: #244ce2; transform: translateY(-1px); }
+    .send svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .send:disabled { opacity: .4; cursor: default; }
+    .privacy { margin: 0 10px 6px; color: #9aa2af; font-size: 9px; text-align: center; }
+    .settings-view { display: none; grid-row: 2 / 4; min-height: 0; padding: 18px 16px 20px; overflow: auto; background: #fbfcfd; }
+    .companion.settings-mode .settings-view { display: block; }
+    .settings-intro { margin: 0 0 16px; color: #667085; font-size: 11px; line-height: 1.65; }
+    .widget-field { display: block; margin: 12px 0 6px; color: #3b475b; font-size: 11px; font-weight: 650; }
+    .widget-field span { color: #8a93a2; font-size: 9px; font-weight: 400; }
+    .widget-input { width: 100%; height: 40px; padding: 0 10px; border: 1px solid #cbd2de; border-radius: 6px; outline: 0; color: #26344d; background: white; font: 12px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+    .widget-input:focus { border-color: #6f8cff; box-shadow: 0 0 0 3px rgba(47,91,255,.1); }
+    .widget-secret { position: relative; }
+    .widget-secret .widget-input { padding-right: 86px; }
+    .key-action { position: absolute; top: 4px; right: 4px; height: 32px; padding: 0 9px; border: 0; border-radius: 4px; color: #58657a; background: transparent; font: 550 10px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; cursor: pointer; }
+    .key-action:hover { color: #244bdb; background: #edf1ff; }
+    .key-action.paste { right: 48px; }
+    .key-action[hidden] { display: none; }
+    .widget-status { min-height: 18px; margin: 8px 0 0; color: #68758a; font-size: 10px; line-height: 1.5; }
+    .widget-status.error { color: #b24337; }
+    .widget-save { display: inline-flex; align-items: center; justify-content: center; min-width: 116px; height: 38px; margin-top: 8px; padding: 0 14px; border: 1px solid #2f5bff; border-radius: 6px; color: white; background: #2f5bff; font: 600 11px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; cursor: pointer; }
+    .widget-save:hover { background: #244ce2; }
+    .widget-save:disabled { opacity: .45; cursor: default; }
+    @keyframes blink { 0%,80%,100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
+    @keyframes stream-caret { 0%,48% { opacity: 1; } 49%,100% { opacity: 0; } }
+    @keyframes orb-aura { 0%,100% { opacity: .58; transform: scale(.9); } 50% { opacity: 1; transform: scale(1.09); } }
+    @keyframes note-pulse { 0%,100% { transform: rotate(-7deg) scale(1); } 50% { transform: rotate(-2deg) scale(1.12); } }
+    @media (prefers-reduced-motion: reduce) { .panel, .orb { transition: none; } .thinking i, .orb::before, .orb-note, .message-body.streaming::after { animation: none !important; } }
+  `
+  const companion = document.createElement('div')
+  companion.className = 'companion'
+  companion.innerHTML = `
+    <section class="panel" role="dialog" aria-label="阅读伴航">
+      <header class="panel-header">
+        <span class="header-glyph">M</span>
+        <div class="panel-title"><strong>阅读伴航</strong><span></span></div>
+        <div class="header-actions">
+          <button class="icon-button settings" type="button" title="AI 设置" aria-label="打开 AI 设置">⚙</button>
+          <button class="icon-button clear" type="button" title="清空对话" aria-label="清空对话">↺</button>
+          <button class="icon-button close" type="button" title="收起" aria-label="收起阅读伴航">×</button>
+        </div>
+      </header>
+      <div class="thread"></div>
+      <div class="composer-shell">
+        <div class="context-banner"><span></span><button type="button" aria-label="移除选中内容">×</button></div>
+        <div class="composer"><textarea rows="1" placeholder="问问这篇文章…" aria-label="向阅读伴航提问"></textarea><button class="send" type="button" aria-label="发送"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg></button></div>
+        <p class="privacy">回答基于当前网页；重要信息请回到原文核对</p>
+      </div>
+      <form class="settings-view">
+        <p class="settings-intro">配置 OpenAI-compatible 服务。设置会保存在 Marginalia 本机，不会改变或刷新当前网页。</p>
+        <label class="widget-field" for="marginalia-ai-url">服务地址</label>
+        <input class="widget-input settings-url" id="marginalia-ai-url" placeholder="http://127.0.0.1:11434/v1" required />
+        <label class="widget-field" for="marginalia-ai-model">模型名称</label>
+        <input class="widget-input settings-model" id="marginalia-ai-model" placeholder="qwen3:4b" required />
+        <label class="widget-field" for="marginalia-ai-key">API Key <span class="key-hint">本地模型可留空</span></label>
+        <div class="widget-secret">
+          <input class="widget-input settings-key" id="marginalia-ai-key" type="password" placeholder="sk-…" autocomplete="off" />
+          <button class="key-action paste" type="button" hidden>粘贴</button>
+          <button class="key-action visibility" type="button">显示</button>
+        </div>
+        <p class="widget-status" role="status"></p>
+        <button class="widget-save" type="submit">保存配置</button>
+      </form>
+    </section>
+    <button class="orb" type="button" title="拖动移动，点击打开" aria-label="打开阅读伴航，可拖动" aria-expanded="false"><canvas class="orb-canvas" aria-hidden="true"></canvas><span class="orb-mark">M</span><span class="orb-note"></span></button>
+  `
+  aiShadow.append(aiStyle, companion)
+  document.documentElement.appendChild(aiHost)
 
   let selectedPayload = null
   let pressingButton = false
@@ -153,6 +373,711 @@ window.addEventListener('DOMContentLoaded', () => {
   let connectorTargets = []
   let highlightRanges = new Map()
   let connectorFrame = 0
+  let aiMessages = []
+  let aiBusy = false
+  let pendingSelection = ''
+
+  const aiPanelTitle = companion.querySelector('.panel-title span')
+  const aiThread = companion.querySelector('.thread')
+  const aiTextarea = companion.querySelector('textarea')
+  const aiSend = companion.querySelector('.send')
+  const aiOrb = companion.querySelector('.orb')
+  const orbCanvas = companion.querySelector('.orb-canvas')
+  const aiContext = companion.querySelector('.context-banner')
+  const aiContextText = aiContext.querySelector('span')
+  const panelHeading = companion.querySelector('.panel-title strong')
+  const settingsToggle = companion.querySelector('.header-actions .settings')
+  const settingsForm = companion.querySelector('.settings-view')
+  const settingsUrl = companion.querySelector('.settings-url')
+  const settingsModel = companion.querySelector('.settings-model')
+  const settingsKey = companion.querySelector('.settings-key')
+  const settingsKeyHint = companion.querySelector('.key-hint')
+  const settingsVisibility = companion.querySelector('.key-action.visibility')
+  const settingsPaste = companion.querySelector('.key-action.paste')
+  const settingsStatus = companion.querySelector('.widget-status')
+  const settingsSave = companion.querySelector('.widget-save')
+
+  const ORB_SIZE = 60
+  const VIEWPORT_GUTTER = 12
+  let companionX = 0
+  let companionY = 0
+  let companionRatio = { x: 1, y: 1 }
+  let dragState = null
+  let suppressOrbClick = false
+
+  const clampCompanionPosition = (x, y) => ({
+    x: Math.max(VIEWPORT_GUTTER, Math.min(window.innerWidth - ORB_SIZE - VIEWPORT_GUTTER, x)),
+    y: Math.max(VIEWPORT_GUTTER, Math.min(window.innerHeight - ORB_SIZE - VIEWPORT_GUTTER, y)),
+  })
+
+  const positionFromRatio = (ratio = companionRatio) => {
+    companionRatio = {
+      x: Math.max(0, Math.min(1, Number(ratio?.x) || 0)),
+      y: Math.max(0, Math.min(1, Number(ratio?.y) || 0)),
+    }
+    const width = Math.max(1, window.innerWidth - ORB_SIZE - VIEWPORT_GUTTER * 2)
+    const height = Math.max(1, window.innerHeight - ORB_SIZE - VIEWPORT_GUTTER * 2)
+    companionX = VIEWPORT_GUTTER + width * companionRatio.x
+    companionY = VIEWPORT_GUTTER + height * companionRatio.y
+    aiHost.style.transform = `translate3d(${Math.round(companionX)}px, ${Math.round(companionY)}px, 0)`
+  }
+
+  const updateRatioFromPosition = () => {
+    const width = Math.max(1, window.innerWidth - ORB_SIZE - VIEWPORT_GUTTER * 2)
+    const height = Math.max(1, window.innerHeight - ORB_SIZE - VIEWPORT_GUTTER * 2)
+    companionRatio = {
+      x: Math.max(0, Math.min(1, (companionX - VIEWPORT_GUTTER) / width)),
+      y: Math.max(0, Math.min(1, (companionY - VIEWPORT_GUTTER) / height)),
+    }
+  }
+
+  const placePanel = () => {
+    const panelWidth = Math.min(390, window.innerWidth - 32)
+    const panelHeight = Math.min(610, window.innerHeight - 104)
+    const canOpenRight = companionX + panelWidth <= window.innerWidth - VIEWPORT_GUTTER
+    const canOpenBelow = companionY + 74 + panelHeight <= window.innerHeight - VIEWPORT_GUTTER
+    const canOpenAbove = companionY - 14 - panelHeight >= VIEWPORT_GUTTER
+    companion.dataset.panelH = canOpenRight ? 'right' : 'left'
+    companion.dataset.panelV = canOpenAbove || !canOpenBelow ? 'above' : 'below'
+  }
+
+  const setAiOpen = (open) => {
+    if (open) placePanel()
+    if (!open && companion.classList.contains('settings-mode')) leaveWidgetSettings()
+    companion.classList.toggle('open', open)
+    aiOrb.setAttribute('aria-expanded', String(open))
+    aiOrb.setAttribute('aria-label', open ? '收起阅读伴航，可拖动' : '打开阅读伴航，可拖动')
+    if (open) window.setTimeout(() => aiTextarea.focus(), 190)
+  }
+
+  const setSettingsStatus = (message = '', error = false) => {
+    settingsStatus.textContent = message
+    settingsStatus.classList.toggle('error', error)
+  }
+
+  const resetSettingsSecret = () => {
+    settingsKey.value = ''
+    settingsKey.type = 'password'
+    settingsVisibility.textContent = '显示'
+    settingsPaste.hidden = true
+  }
+
+  const leaveWidgetSettings = () => {
+    companion.classList.remove('settings-mode')
+    panelHeading.textContent = '阅读伴航'
+    settingsToggle.textContent = '⚙'
+    settingsToggle.setAttribute('aria-label', '打开 AI 设置')
+    settingsToggle.title = 'AI 设置'
+    resetSettingsSecret()
+    setSettingsStatus()
+  }
+
+  const enterWidgetSettings = async () => {
+    companion.classList.add('settings-mode')
+    panelHeading.textContent = 'AI 设置'
+    settingsToggle.textContent = '←'
+    settingsToggle.setAttribute('aria-label', '返回对话')
+    settingsToggle.title = '返回对话'
+    settingsSave.disabled = true
+    setSettingsStatus('正在读取配置…')
+    try {
+      const config = await ipcRenderer.invoke('ai:config:get')
+      settingsUrl.value = config?.baseUrl || ''
+      settingsModel.value = config?.model || ''
+      settingsKey.dataset.hasKey = String(Boolean(config?.hasApiKey))
+      settingsKey.placeholder = config?.hasApiKey ? '••••••••••••' : 'sk-…'
+      settingsKeyHint.textContent = config?.hasApiKey ? '已保存' : '本地模型可留空'
+      setSettingsStatus()
+    } catch {
+      setSettingsStatus('无法读取 AI 配置', true)
+    } finally {
+      settingsSave.disabled = false
+    }
+  }
+
+  const orbContext = orbCanvas.getContext('2d')
+  const reduceOrbMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+  let orbPointer = { x: 0, y: 0 }
+  let orbPointerTarget = { x: 0, y: 0 }
+
+  const sizeOrbCanvas = () => {
+    const density = Math.min(2, window.devicePixelRatio || 1)
+    orbCanvas.width = ORB_SIZE * density
+    orbCanvas.height = ORB_SIZE * density
+    orbContext.setTransform(density, 0, 0, density, 0, 0)
+  }
+
+  const drawOrb = (rawTime = 0) => {
+    const time = reduceOrbMotion.matches ? 0 : rawTime
+    const speed = aiBusy ? .0022 : .00055
+    const phase = time * speed
+    orbPointer.x += (orbPointerTarget.x - orbPointer.x) * .075
+    orbPointer.y += (orbPointerTarget.y - orbPointer.y) * .075
+    const centerX = 30 + orbPointer.x * 1.5
+    const centerY = 30 + orbPointer.y * 1.5
+    orbContext.clearRect(0, 0, ORB_SIZE, ORB_SIZE)
+    orbContext.save()
+    orbContext.beginPath()
+    orbContext.arc(30, 30, 29, 0, Math.PI * 2)
+    orbContext.clip()
+
+    const base = orbContext.createLinearGradient(
+      5 + Math.cos(phase) * 9,
+      5 + Math.sin(phase) * 9,
+      55 + Math.sin(phase) * 7,
+      55 + Math.cos(phase) * 7,
+    )
+    base.addColorStop(0, '#14213d')
+    base.addColorStop(.4, '#244ce2')
+    base.addColorStop(.72, '#2f5bff')
+    base.addColorStop(1, '#14213d')
+    orbContext.fillStyle = base
+    orbContext.fillRect(0, 0, 60, 60)
+
+    orbContext.globalCompositeOperation = 'screen'
+    const lights = [
+      { x: centerX + Math.cos(phase * 1.4) * 13, y: centerY + Math.sin(phase * 1.1) * 12, r: 21, color: '121,221,255' },
+      { x: centerX + Math.cos(phase * .8 + 2.4) * 16, y: centerY + Math.sin(phase * 1.3 + 1.2) * 15, r: 18, color: '77,103,255' },
+      { x: centerX + Math.sin(phase * 1.7 + .5) * 10, y: centerY + Math.cos(phase * .9 + 2.1) * 13, r: 13, color: '244,230,106' },
+    ]
+    for (const light of lights) {
+      const glow = orbContext.createRadialGradient(light.x, light.y, 0, light.x, light.y, light.r)
+      glow.addColorStop(0, `rgba(${light.color},.55)`)
+      glow.addColorStop(.45, `rgba(${light.color},.18)`)
+      glow.addColorStop(1, `rgba(${light.color},0)`)
+      orbContext.fillStyle = glow
+      orbContext.fillRect(light.x - light.r, light.y - light.r, light.r * 2, light.r * 2)
+    }
+
+    orbContext.globalCompositeOperation = 'source-over'
+    for (let index = 0; index < 3; index += 1) {
+      orbContext.save()
+      orbContext.translate(centerX, centerY)
+      orbContext.rotate(phase * (.38 + index * .11) + index * 1.8)
+      orbContext.beginPath()
+      orbContext.ellipse(0, 0, 22 - index * 3.4, 10 + index * 2.6, 0, 0, Math.PI * 2)
+      orbContext.strokeStyle = `rgba(255,255,255,${.22 - index * .04})`
+      orbContext.lineWidth = .75
+      orbContext.stroke()
+      orbContext.restore()
+    }
+
+    for (let index = 0; index < 7; index += 1) {
+      const angle = phase * (aiBusy ? 1.9 : .72) + index * .9
+      const distance = 18 + (index % 3) * 3
+      const x = centerX + Math.cos(angle) * distance
+      const y = centerY + Math.sin(angle * 1.13) * distance
+      orbContext.beginPath()
+      orbContext.arc(x, y, index % 2 ? 1.15 : .75, 0, Math.PI * 2)
+      orbContext.fillStyle = index === 5 ? 'rgba(244,230,106,.92)' : 'rgba(255,255,255,.68)'
+      orbContext.fill()
+    }
+    orbContext.restore()
+    if (!reduceOrbMotion.matches) window.requestAnimationFrame(drawOrb)
+  }
+
+  sizeOrbCanvas()
+  window.requestAnimationFrame(drawOrb)
+
+  ipcRenderer.invoke('page:companion-position:get').then((saved) => {
+    positionFromRatio(saved || { x: 1, y: 1 })
+  }).catch(() => positionFromRatio({ x: 1, y: 1 })).finally(() => {
+    aiHost.style.visibility = 'visible'
+  })
+
+  const scrollAiToEnd = () => window.requestAnimationFrame(() => {
+    aiThread.scrollTop = aiThread.scrollHeight
+  })
+
+  const updateContextBanner = () => {
+    aiContext.classList.toggle('visible', Boolean(pendingSelection))
+    aiContextText.textContent = pendingSelection ? `已选原文：${pendingSelection}` : ''
+  }
+
+  const safeLink = (value) => {
+    try {
+      const url = new URL(value, location.href)
+      return ['http:', 'https:', 'mailto:'].includes(url.protocol) ? url.href : ''
+    } catch {
+      return ''
+    }
+  }
+
+  const appendInlineMarkdown = (parent, value) => {
+    const text = String(value || '')
+    let index = 0
+    let plain = ''
+    const flush = () => {
+      if (!plain) return
+      parent.appendChild(document.createTextNode(plain))
+      plain = ''
+    }
+    const appendDelimited = (marker, tag) => {
+      if (!text.startsWith(marker, index)) return false
+      flush()
+      const start = index + marker.length
+      const end = text.indexOf(marker, start)
+      const element = document.createElement(tag)
+      appendInlineMarkdown(element, text.slice(start, end < 0 ? text.length : end))
+      if (element.textContent) parent.appendChild(element)
+      index = end < 0 ? text.length : end + marker.length
+      return true
+    }
+    while (index < text.length) {
+      if (text[index] === '\\' && index + 1 < text.length) {
+        plain += text[index + 1]
+        index += 2
+        continue
+      }
+      if (text[index] === '`') {
+        flush()
+        const end = text.indexOf('`', index + 1)
+        const code = document.createElement('code')
+        code.textContent = text.slice(index + 1, end < 0 ? text.length : end)
+        if (code.textContent) parent.appendChild(code)
+        index = end < 0 ? text.length : end + 1
+        continue
+      }
+      if (text.startsWith('![', index) || text[index] === '[') {
+        const image = text.startsWith('![', index)
+        const labelStart = index + (image ? 2 : 1)
+        const labelEnd = text.indexOf(']', labelStart)
+        const urlStart = labelEnd >= 0 && text[labelEnd + 1] === '(' ? labelEnd + 2 : -1
+        const urlEnd = urlStart >= 0 ? text.indexOf(')', urlStart) : -1
+        if (labelEnd >= 0 && urlEnd >= 0) {
+          flush()
+          const labelText = text.slice(labelStart, labelEnd)
+          const href = safeLink(text.slice(urlStart, urlEnd).trim().split(/\s+['\"]/)[0])
+          if (!image && href) {
+            const link = document.createElement('a')
+            link.href = href
+            link.target = '_blank'
+            link.rel = 'noreferrer noopener'
+            appendInlineMarkdown(link, labelText)
+            parent.appendChild(link)
+          } else {
+            appendInlineMarkdown(parent, labelText)
+          }
+          index = urlEnd + 1
+          continue
+        }
+        flush()
+        const visibleEnd = labelEnd < 0 ? text.length : labelEnd
+        appendInlineMarkdown(parent, text.slice(labelStart, visibleEnd))
+        index = labelEnd < 0 || text[labelEnd + 1] === '(' ? text.length : labelEnd + 1
+        continue
+      }
+      if (appendDelimited('**', 'strong') || appendDelimited('__', 'strong') || appendDelimited('~~', 's') || appendDelimited('*', 'em') || appendDelimited('_', 'em')) continue
+      plain += text[index]
+      index += 1
+    }
+    flush()
+  }
+
+  const splitTableRow = (line) => line.trim().replace(/^\||\|$/g, '').split('|').map((cell) => cell.trim())
+
+  const renderMarkdown = (container, markdown) => {
+    const lines = String(markdown || '').replace(/\r\n?/g, '\n').split('\n')
+    let index = 0
+    const addInlineBlock = (tag, content) => {
+      const element = document.createElement(tag)
+      appendInlineMarkdown(element, content)
+      container.appendChild(element)
+    }
+    while (index < lines.length) {
+      const line = lines[index]
+      if (!line.trim()) {
+        index += 1
+        continue
+      }
+      if (/^\s*(?:[-+*]|\d+[.)])\s*$/.test(line)) {
+        index += 1
+        continue
+      }
+      const fence = line.match(/^\s*```\s*([^\s`]*)/)
+      if (fence) {
+        const codeLines = []
+        index += 1
+        while (index < lines.length && !/^\s*```/.test(lines[index])) codeLines.push(lines[index++])
+        if (index < lines.length) index += 1
+        const pre = document.createElement('pre')
+        const code = document.createElement('code')
+        if (fence[1]) code.dataset.language = fence[1]
+        code.textContent = codeLines.join('\n')
+        pre.appendChild(code)
+        container.appendChild(pre)
+        continue
+      }
+      const heading = line.match(/^\s{0,3}(#{1,6})(?:\s+|$)(.*)$/)
+      if (heading) {
+        addInlineBlock(`h${Math.min(4, heading[1].length)}`, heading[2])
+        index += 1
+        continue
+      }
+      if (/^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/.test(line)) {
+        container.appendChild(document.createElement('hr'))
+        index += 1
+        continue
+      }
+      if (line.includes('|') && index + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[index + 1])) {
+        const headings = splitTableRow(line)
+        const table = document.createElement('table')
+        const thead = document.createElement('thead')
+        const headerRow = document.createElement('tr')
+        headings.forEach((value) => {
+          const cell = document.createElement('th')
+          appendInlineMarkdown(cell, value)
+          headerRow.appendChild(cell)
+        })
+        thead.appendChild(headerRow)
+        table.appendChild(thead)
+        index += 2
+        const tbody = document.createElement('tbody')
+        while (index < lines.length && lines[index].includes('|') && lines[index].trim()) {
+          const row = document.createElement('tr')
+          splitTableRow(lines[index]).forEach((value) => {
+            const cell = document.createElement('td')
+            appendInlineMarkdown(cell, value)
+            row.appendChild(cell)
+          })
+          tbody.appendChild(row)
+          index += 1
+        }
+        if (tbody.childNodes.length) table.appendChild(tbody)
+        container.appendChild(table)
+        continue
+      }
+      if (/^\s*>/.test(line)) {
+        const quoteLines = []
+        while (index < lines.length && /^\s*>/.test(lines[index])) quoteLines.push(lines[index++].replace(/^\s*>\s?/, ''))
+        const quote = document.createElement('blockquote')
+        const paragraph = document.createElement('p')
+        appendInlineMarkdown(paragraph, quoteLines.join(' '))
+        quote.appendChild(paragraph)
+        container.appendChild(quote)
+        continue
+      }
+      const listMatch = line.match(/^\s*(?:([-+*])|(\d+)[.)])\s+(.*)$/)
+      if (listMatch) {
+        const ordered = Boolean(listMatch[2])
+        const list = document.createElement(ordered ? 'ol' : 'ul')
+        while (index < lines.length) {
+          const item = lines[index].match(/^\s*(?:([-+*])|(\d+)[.)])\s+(.*)$/)
+          if (!item || Boolean(item[2]) !== ordered) break
+          const listItem = document.createElement('li')
+          appendInlineMarkdown(listItem, item[3])
+          list.appendChild(listItem)
+          index += 1
+        }
+        container.appendChild(list)
+        continue
+      }
+      const paragraphLines = [line.trim()]
+      index += 1
+      while (index < lines.length && lines[index].trim() && !/^\s*(?:```|#{1,6}\s|>|[-+*]\s+|\d+[.)]\s+)/.test(lines[index])) {
+        if (lines[index].includes('|') && index + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[index + 1])) break
+        paragraphLines.push(lines[index].trim())
+        index += 1
+      }
+      addInlineBlock('p', paragraphLines.join(' '))
+    }
+  }
+
+  const addMessageElement = (message) => {
+    const article = document.createElement('article')
+    article.className = `message ${message.role}`
+    const label = document.createElement('div')
+    label.className = 'message-label'
+    label.textContent = message.role === 'assistant' ? (message.streaming ? '伴航正在回答' : '伴航') : '你'
+    const body = document.createElement('div')
+    body.className = 'message-body'
+    if (message.role === 'assistant') {
+      renderMarkdown(body, message.content)
+      body.classList.toggle('streaming', Boolean(message.streaming))
+    } else {
+      body.textContent = message.content
+    }
+    article.append(label, body)
+    if (message.context?.kind === 'selection' && message.context.excerpt) {
+      const source = document.createElement('div')
+      source.className = 'source'
+      source.textContent = `原文：${message.context.excerpt}`
+      article.appendChild(source)
+    }
+    aiThread.appendChild(article)
+  }
+
+  const renderAiThread = () => {
+    aiThread.replaceChildren()
+    if (!aiMessages.length) {
+      const welcome = document.createElement('div')
+      welcome.className = 'welcome'
+      welcome.innerHTML = `
+        <h2>读到哪里，问到哪里。</h2>
+        <p>我会以当前网页为依据，帮你概括、解释，也可以接着追问。</p>
+        <div class="quick-actions">
+          <button class="quick-action" type="button" data-prompt="请总结全文：先用一句话概括主旨，再列出 5 个以内的核心要点，最后说明作者的结论。"><b>Σ</b><span>总结全文</span></button>
+          <button class="quick-action" type="button" data-prompt="请梳理这篇文章的论证结构：作者提出了什么问题、用了哪些依据、得出了什么结论？"><b>≡</b><span>梳理核心观点</span></button>
+          <button class="quick-action" type="button" data-prompt="请用没有专业背景的人也能理解的方式介绍这篇文章，必要时解释关键术语。"><b>?</b><span>简单讲讲这篇文章</span></button>
+        </div>
+      `
+      welcome.querySelectorAll('.quick-action').forEach((action) => {
+        action.addEventListener('click', () => askAi(action.dataset.prompt))
+      })
+      aiThread.appendChild(welcome)
+    } else {
+      aiMessages.forEach((message) => {
+        if (message.role === 'assistant' && message.streaming && !message.content) return
+        addMessageElement(message)
+      })
+    }
+    const streamingAnswer = aiMessages.find((message) => message.role === 'assistant' && message.streaming)
+    if (aiBusy && !streamingAnswer?.content) {
+      const thinking = document.createElement('article')
+      thinking.className = 'message assistant'
+      thinking.innerHTML = '<div class="message-label">伴航正在阅读</div><div class="thinking"><i></i><i></i><i></i></div>'
+      aiThread.appendChild(thinking)
+    }
+    aiSend.disabled = aiBusy
+    companion.classList.toggle('thinking', aiBusy)
+    scrollAiToEnd()
+  }
+
+  const requestAiStream = (payload, onChunk) => new Promise((resolve, reject) => {
+    const requestId = crypto.randomUUID()
+    let timeout
+    const matches = (data) => data?.requestId === requestId
+    const cleanup = () => {
+      window.clearTimeout(timeout)
+      ipcRenderer.removeListener('page:ai-stream-chunk', handleChunk)
+      ipcRenderer.removeListener('page:ai-stream-done', handleDone)
+      ipcRenderer.removeListener('page:ai-stream-error', handleError)
+    }
+    const handleChunk = (_event, data) => {
+      if (!matches(data)) return
+      const delta = String(data.delta || '')
+      if (delta) onChunk(delta)
+    }
+    const handleDone = (_event, data) => {
+      if (!matches(data)) return
+      cleanup()
+      resolve(data)
+    }
+    const handleError = (_event, data) => {
+      if (!matches(data)) return
+      cleanup()
+      reject(new Error(data.message || '模型请求失败'))
+    }
+    ipcRenderer.on('page:ai-stream-chunk', handleChunk)
+    ipcRenderer.on('page:ai-stream-done', handleDone)
+    ipcRenderer.on('page:ai-stream-error', handleError)
+    timeout = window.setTimeout(() => {
+      cleanup()
+      reject(new Error('模型响应超时，请稍后重试'))
+    }, 125000)
+    ipcRenderer.send('page:ai-stream', { ...payload, requestId })
+  })
+
+  const askAi = async (rawQuestion, selection = pendingSelection) => {
+    const question = String(rawQuestion || '').trim()
+    if (!question || aiBusy) return
+    const history = aiMessages.filter((message) => !message.transient).map(({ role, content }) => ({ role, content }))
+    const user = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: question,
+      createdAt: new Date().toISOString(),
+      context: selection ? { kind: 'selection', excerpt: selection } : { kind: 'page' },
+    }
+    const assistant = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: '',
+      createdAt: new Date().toISOString(),
+      streaming: true,
+    }
+    aiMessages.push(user, assistant)
+    pendingSelection = ''
+    updateContextBanner()
+    aiTextarea.value = ''
+    aiTextarea.style.height = 'auto'
+    aiBusy = true
+    renderAiThread()
+    let renderFrame = 0
+    const renderStream = () => {
+      if (renderFrame) return
+      renderFrame = window.requestAnimationFrame(() => {
+        renderFrame = 0
+        renderAiThread()
+      })
+    }
+    try {
+      await requestAiStream({ question, selection, history }, (delta) => {
+        assistant.content += delta
+        renderStream()
+      })
+      assistant.streaming = false
+      ipcRenderer.send('page:ai-exchange', { user, assistant })
+    } catch (error) {
+      const message = error?.message || '暂时无法获得回答，请检查 AI 设置后重试。'
+      assistant.streaming = false
+      assistant.transient = true
+      if (assistant.content.trim()) assistant.content += `\n\n> 回答中断：${message}`
+      else assistant.content = message
+    } finally {
+      if (renderFrame) window.cancelAnimationFrame(renderFrame)
+      aiBusy = false
+      renderAiThread()
+      aiTextarea.focus()
+    }
+  }
+
+  aiPanelTitle.textContent = document.title || location.hostname
+  aiOrb.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return
+    dragState = {
+      pointerId: event.pointerId,
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      originX: companionX,
+      originY: companionY,
+      moved: false,
+    }
+    aiOrb.setPointerCapture(event.pointerId)
+    companion.classList.add('dragging')
+  })
+  aiOrb.addEventListener('pointermove', (event) => {
+    const rect = aiOrb.getBoundingClientRect()
+    orbPointerTarget = {
+      x: Math.max(-1, Math.min(1, ((event.clientX - rect.left) / rect.width - .5) * 2)),
+      y: Math.max(-1, Math.min(1, ((event.clientY - rect.top) / rect.height - .5) * 2)),
+    }
+    if (!dragState || dragState.pointerId !== event.pointerId) return
+    const dx = event.clientX - dragState.pointerX
+    const dy = event.clientY - dragState.pointerY
+    if (Math.hypot(dx, dy) > 4) dragState.moved = true
+    const next = clampCompanionPosition(dragState.originX + dx, dragState.originY + dy)
+    companionX = next.x
+    companionY = next.y
+    aiHost.style.transform = `translate3d(${Math.round(companionX)}px, ${Math.round(companionY)}px, 0)`
+    if (companion.classList.contains('open')) placePanel()
+  })
+  aiOrb.addEventListener('pointerleave', () => {
+    if (!dragState) orbPointerTarget = { x: 0, y: 0 }
+  })
+  const finishOrbDrag = (event) => {
+    if (!dragState || dragState.pointerId !== event.pointerId) return
+    suppressOrbClick = dragState.moved
+    if (suppressOrbClick) window.setTimeout(() => { suppressOrbClick = false }, 0)
+    dragState = null
+    companion.classList.remove('dragging')
+    orbPointerTarget = { x: 0, y: 0 }
+    if (aiOrb.hasPointerCapture(event.pointerId)) aiOrb.releasePointerCapture(event.pointerId)
+    updateRatioFromPosition()
+    ipcRenderer.invoke('page:companion-position:set', companionRatio).catch(() => {})
+  }
+  aiOrb.addEventListener('pointerup', finishOrbDrag)
+  aiOrb.addEventListener('pointercancel', finishOrbDrag)
+  aiOrb.addEventListener('click', () => {
+    if (suppressOrbClick) {
+      suppressOrbClick = false
+      return
+    }
+    setAiOpen(!companion.classList.contains('open'))
+  })
+  companion.querySelector('.close').addEventListener('click', () => {
+    setAiOpen(false)
+  })
+  settingsToggle.addEventListener('click', () => {
+    if (companion.classList.contains('settings-mode')) leaveWidgetSettings()
+    else enterWidgetSettings()
+  })
+  settingsVisibility.addEventListener('click', async () => {
+    const reveal = settingsKey.type === 'password'
+    if (reveal && !settingsKey.value && settingsKey.dataset.hasKey === 'true') {
+      settingsVisibility.disabled = true
+      try {
+        const result = await ipcRenderer.invoke('ai:config:reveal')
+        settingsKey.value = result?.apiKey || ''
+      } catch {
+        setSettingsStatus('无法读取已保存的 API Key', true)
+        settingsVisibility.disabled = false
+        return
+      }
+      settingsVisibility.disabled = false
+    }
+    settingsKey.type = reveal ? 'text' : 'password'
+    settingsVisibility.textContent = reveal ? '隐藏' : '显示'
+    settingsPaste.hidden = !reveal
+  })
+  settingsPaste.addEventListener('click', async () => {
+    try {
+      const value = String(await ipcRenderer.invoke('clipboard:read')).trim()
+      if (!value) {
+        setSettingsStatus('剪贴板里没有可粘贴的内容', true)
+        return
+      }
+      settingsKey.value = value
+      setSettingsStatus('已粘贴 API Key')
+    } catch {
+      setSettingsStatus('无法读取剪贴板', true)
+    }
+  })
+  settingsForm.addEventListener('submit', async (event) => {
+    event.preventDefault()
+    settingsSave.disabled = true
+    settingsSave.textContent = '保存中…'
+    setSettingsStatus()
+    try {
+      const saved = await ipcRenderer.invoke('ai:config:set', {
+        baseUrl: settingsUrl.value,
+        model: settingsModel.value,
+        apiKey: settingsKey.value || undefined,
+      })
+      settingsKey.dataset.hasKey = String(Boolean(saved?.hasApiKey))
+      settingsKeyHint.textContent = saved?.hasApiKey ? '已保存' : '本地模型可留空'
+      setSettingsStatus('配置已保存')
+    } catch (error) {
+      setSettingsStatus(error?.message || '配置保存失败', true)
+    } finally {
+      settingsSave.disabled = false
+      settingsSave.textContent = '保存配置'
+    }
+  })
+  companion.querySelector('.clear').addEventListener('click', () => {
+    aiMessages = []
+    renderAiThread()
+    ipcRenderer.send('page:ai-clear')
+  })
+  aiContext.querySelector('button').addEventListener('click', () => {
+    pendingSelection = ''
+    updateContextBanner()
+  })
+  aiSend.addEventListener('click', () => askAi(aiTextarea.value))
+  aiTextarea.addEventListener('input', () => {
+    aiTextarea.style.height = 'auto'
+    aiTextarea.style.height = `${Math.min(96, aiTextarea.scrollHeight)}px`
+  })
+  aiTextarea.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      askAi(aiTextarea.value)
+    }
+  })
+  ipcRenderer.on('page:ai-thread', (_event, messages) => {
+    aiMessages = Array.isArray(messages) ? messages.filter((message) => message?.role && message?.content) : []
+    renderAiThread()
+  })
+  ipcRenderer.on('page:ask-selection-direct', (_event, payload) => {
+    const text = String(payload?.text || '').replace(/\s+/g, ' ').trim().slice(0, 5000)
+    if (!text) return
+    pendingSelection = text
+    updateContextBanner()
+    setAiOpen(true)
+    askAi('请解释这段内容：它在这里具体是什么意思？', text)
+  })
+  ipcRenderer.send('page:ai-ready')
+  renderAiThread()
 
   const resolveNodePath = (path) => {
     let node = document.body
@@ -331,24 +1256,39 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     selectedPayload = { text, anchor: selectionAnchor(range) }
     host.style.display = 'block'
-    const width = 76
+    const width = 164
     const left = Math.max(8, Math.min(window.innerWidth - width - 8, rect.left + rect.width / 2 - width / 2))
     const placeAbove = rect.top > 48
     const top = placeAbove ? rect.top - 43 : Math.min(window.innerHeight - 44, rect.bottom + 8)
-    button.dataset.placement = placeAbove ? 'above' : 'below'
+    selectionBar.dataset.placement = placeAbove ? 'above' : 'below'
     host.style.left = `${Math.round(left)}px`
     host.style.top = `${Math.round(top)}px`
   }
 
-  button.addEventListener('mousedown', (event) => {
+  const holdSelection = (event) => {
     pressingButton = true
     event.preventDefault()
     event.stopPropagation()
-  })
-  button.addEventListener('click', (event) => {
+  }
+  highlightButton.addEventListener('mousedown', holdSelection)
+  askButton.addEventListener('mousedown', holdSelection)
+  highlightButton.addEventListener('click', (event) => {
     event.preventDefault()
     event.stopPropagation()
     if (selectedPayload) ipcRenderer.send('page:save-highlight', selectedPayload)
+    window.getSelection()?.removeAllRanges()
+    pressingButton = false
+    hide()
+  })
+  askButton.addEventListener('click', (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (selectedPayload) {
+      pendingSelection = selectedPayload.text
+      updateContextBanner()
+      setAiOpen(true)
+      askAi('请解释这段内容：它在这里具体是什么意思？', selectedPayload.text)
+    }
     window.getSelection()?.removeAllRanges()
     pressingButton = false
     hide()
@@ -358,13 +1298,19 @@ window.addEventListener('DOMContentLoaded', () => {
     if (event.composedPath().includes(host)) return
     hide()
   }, true)
-  document.addEventListener('keydown', (event) => event.key === 'Escape' && hide(), true)
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return
+    hide()
+    setAiOpen(false)
+  }, true)
   window.addEventListener('scroll', () => {
     hide()
     scheduleConnectorRender()
   }, true)
   window.addEventListener('resize', () => {
     hide()
+    positionFromRatio(companionRatio)
+    if (companion.classList.contains('open')) placePanel()
     scheduleConnectorRender()
   })
   window.addEventListener('pagehide', hide)

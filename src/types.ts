@@ -21,6 +21,23 @@ export type BrowserConnectorTarget = {
   targetY: number
 }
 
+export type AiMessage = {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: string
+  context?: {
+    kind: 'page' | 'selection'
+    excerpt?: string
+  }
+}
+
+export type AiConfig = {
+  baseUrl: string
+  model: string
+  hasApiKey: boolean
+}
+
 export type Bookmark = {
   id: string
   url: string
@@ -36,6 +53,7 @@ export type Bookmark = {
   contentText: string
   offlinePath?: string
   annotations: Annotation[]
+  aiThread?: AiMessage[]
 }
 
 export type AppStore = {

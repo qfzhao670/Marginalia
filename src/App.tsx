@@ -3,7 +3,10 @@ import {
   ArrowRight,
   Check,
   ChevronDown,
+  ClipboardPaste,
   Download,
+  Eye,
+  EyeOff,
   ExternalLink,
   FileText,
   Globe2,
@@ -113,6 +116,32 @@ function App() {
 
   useEffect(() => window.marginalia.browser.onState(setBrowserState), [])
 
+  useEffect(() => window.marginalia.browser.onAiExchange(({ user, assistant }) => {
+    if (!currentId) return
+    setStore((previous) => ({
+      ...previous,
+      bookmarks: previous.bookmarks.map((bookmark) => bookmark.id === currentId
+        ? { ...bookmark, aiThread: [...(bookmark.aiThread ?? []), user, assistant] }
+        : bookmark),
+    }))
+  }), [currentId])
+
+  useEffect(() => window.marginalia.browser.onAiClear(() => {
+    if (!currentId) return
+    setStore((previous) => ({
+      ...previous,
+      bookmarks: previous.bookmarks.map((bookmark) => bookmark.id === currentId ? { ...bookmark, aiThread: [] } : bookmark),
+    }))
+  }), [currentId])
+
+  useEffect(() => window.marginalia.browser.onAiReady(() => {
+    window.marginalia.browser.aiThread(current?.aiThread ?? [])
+  }), [current?.id, current?.aiThread])
+
+  useEffect(() => {
+    if (view === 'reader' && current) window.marginalia.browser.aiThread(current.aiThread ?? [])
+  }, [view, current?.id])
+
   useEffect(() => window.marginalia.browser.onProgress((progress) => {
     progressRef.current = progress
     if (!currentId) return
@@ -153,7 +182,7 @@ function App() {
   }, [view, current?.id, current?.annotations])
 
   useEffect(() => {
-    if (view !== 'reader' || !current || !viewportRef.current) {
+    if (view !== 'reader' || !current || !viewportRef.current || settingsOpen) {
       window.marginalia.browser.hide()
       return
     }
@@ -169,7 +198,7 @@ function App() {
       observer.disconnect()
       window.removeEventListener('resize', sync)
     }
-  }, [view, current?.id, current?.url, current?.offlinePath, notesOpen, notify])
+  }, [view, current?.id, current?.url, current?.offlinePath, notesOpen, settingsOpen, notify])
 
   useEffect(() => {
     if (view !== 'reader' || !current || !notesOpen || !viewportRef.current) {
@@ -411,7 +440,7 @@ function App() {
       {query && <SearchDialog query={query.trim()} setQuery={setQuery} bookmarks={store.bookmarks} onOpen={openBookmark} />}
       {addOpen && <AddBookmarkDialog store={store} setStore={setStore} onClose={() => setAddOpen(false)} notify={notify} />}
       {tagManagerOpen && <TagManager store={store} setStore={setStore} onClose={() => setTagManagerOpen(false)} notify={notify} />}
-      {settingsOpen && <SettingsDialog store={store} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsDialog store={store} onClose={() => setSettingsOpen(false)} notify={notify} />}
       {editingTagsFor && (
         <EditTagsDialog
           bookmark={store.bookmarks.find((item) => item.id === editingTagsFor)!}
@@ -848,7 +877,64 @@ function TagManager({ store, setStore, onClose, notify }: { store: AppStore; set
   )
 }
 
-function SettingsDialog({ store, onClose }: { store: AppStore; onClose: () => void }) {
+function SettingsDialog({ store, onClose, notify }: { store: AppStore; onClose: () => void; notify: (message: string, tone?: ToastState['tone']) => void }) {
+  const [aiConfig, setAiConfig] = useState({ baseUrl: '', model: '', hasApiKey: false })
+  const [apiKey, setApiKey] = useState('')
+  const [apiKeyVisible, setApiKeyVisible] = useState(false)
+  const [savingAi, setSavingAi] = useState(false)
+
+  useEffect(() => {
+    window.marginalia.ai.getConfig().then(setAiConfig).catch(() => notify('无法读取 AI 配置', 'danger'))
+  }, [notify])
+
+  const toggleApiKeyVisibility = async () => {
+    const nextVisible = !apiKeyVisible
+    if (nextVisible && !apiKey && aiConfig.hasApiKey) {
+      try {
+        const revealed = await window.marginalia.ai.revealKey()
+        setApiKey(revealed.apiKey)
+      } catch {
+        notify('无法读取已保存的 API Key', 'danger')
+        return
+      }
+    }
+    setApiKeyVisible(nextVisible)
+  }
+
+  const pasteApiKey = async () => {
+    try {
+      const value = (await window.marginalia.clipboard.readText()).trim()
+      if (!value) {
+        notify('剪贴板里没有可粘贴的内容', 'danger')
+        return
+      }
+      setApiKey(value)
+      notify('已粘贴 API Key')
+    } catch {
+      notify('无法读取剪贴板', 'danger')
+    }
+  }
+
+  const saveAi = async (event: FormEvent) => {
+    event.preventDefault()
+    setSavingAi(true)
+    try {
+      const saved = await window.marginalia.ai.setConfig({
+        baseUrl: aiConfig.baseUrl,
+        model: aiConfig.model,
+        apiKey: apiKey || undefined,
+      })
+      setAiConfig(saved)
+      setApiKey('')
+      setApiKeyVisible(false)
+      notify('AI 伴航配置已保存')
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'AI 配置保存失败', 'danger')
+    } finally {
+      setSavingAi(false)
+    }
+  }
+
   const exportData = () => {
     const blob = new Blob([JSON.stringify(store, null, 2)], { type: 'application/json' })
     const link = document.createElement('a')
@@ -860,6 +946,23 @@ function SettingsDialog({ store, onClose }: { store: AppStore; onClose: () => vo
   return (
     <Modal className="settings-modal">
       <div className="modal-title-row"><h2>设置</h2><button className="icon-button" onClick={onClose}><X /></button></div>
+      <section className="settings-section ai-settings-section">
+        <h3>AI 阅读伴航</h3>
+        <p>支持 OpenAI-compatible 服务，包括 OpenAI、OpenRouter、Ollama 和 LM Studio。密钥只保存在本机系统安全存储中。</p>
+        <form onSubmit={saveAi}>
+          <label className="field-label">服务地址</label>
+          <input className="text-field" value={aiConfig.baseUrl} onChange={(event) => setAiConfig((current) => ({ ...current, baseUrl: event.target.value }))} placeholder="http://127.0.0.1:11434/v1" required />
+          <label className="field-label">模型名称</label>
+          <input className="text-field" value={aiConfig.model} onChange={(event) => setAiConfig((current) => ({ ...current, model: event.target.value }))} placeholder="qwen3:4b" required />
+          <label className="field-label">API Key <span>{aiConfig.hasApiKey ? '已保存，可留空' : '本地模型可留空'}</span></label>
+          <div className="secret-field">
+            <input className="text-field" type={apiKeyVisible ? 'text' : 'password'} value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={aiConfig.hasApiKey ? '••••••••••••' : 'sk-…'} autoComplete="off" />
+            {apiKeyVisible && <button type="button" onClick={pasteApiKey} title="从剪贴板粘贴 API Key"><ClipboardPaste /></button>}
+            <button type="button" onClick={toggleApiKeyVisibility} title={apiKeyVisible ? '隐藏 API Key' : '显示 API Key'}>{apiKeyVisible ? <EyeOff /> : <Eye />}</button>
+          </div>
+          <button className="button primary ai-save-button" disabled={savingAi || !aiConfig.baseUrl || !aiConfig.model}>{savingAi ? <LoaderCircle className="spin" /> : null}{savingAi ? '保存中' : '保存 AI 配置'}</button>
+        </form>
+      </section>
       <section className="settings-section"><h3>本地资料库</h3><p>收藏、标签、阅读进度和笔记都保存在这台电脑上。</p><div className="storage-stat"><span>{store.bookmarks.length}</span> 个网页 <i /> <span>{store.tags.length}</span> 个标签</div></section>
       <section className="settings-section"><h3>数据备份</h3><p>导出 JSON 文件，可以保存你的收藏和全部笔记。</p><button className="button" onClick={exportData}><Download />导出数据</button></section>
     </Modal>
