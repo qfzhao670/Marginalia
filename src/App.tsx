@@ -23,7 +23,7 @@ import {
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { FormEvent, MouseEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { Annotation, AppStore, Bookmark, BrowserState, PageMetadata, ReadStatus } from './types'
+import type { AiConversation, Annotation, AppStore, Bookmark, BrowserState, PageMetadata, ReadStatus } from './types'
 
 type LibraryScope = { type: 'all' } | { type: 'starred' } | { type: 'tag'; tag: string }
 type ToastState = { message: string; tone?: 'default' | 'danger' }
@@ -62,6 +62,20 @@ const sortAnnotationsByCreatedAt = (annotations: Annotation[]) => [...annotation
   const rightTime = new Date(right.createdAt).getTime()
   return (Number.isNaN(leftTime) ? 0 : leftTime) - (Number.isNaN(rightTime) ? 0 : rightTime)
 })
+
+const bookmarkAiConversations = (bookmark: Bookmark | null): AiConversation[] => {
+  if (!bookmark) return []
+  if (bookmark.aiConversations?.length) return bookmark.aiConversations
+  if (!bookmark.aiThread?.length) return []
+  const firstUserMessage = bookmark.aiThread.find((message) => message.role === 'user')
+  return [{
+    id: `legacy-${bookmark.id}`,
+    title: firstUserMessage?.content.trim().slice(0, 32) || '历史对话',
+    createdAt: bookmark.aiThread[0]?.createdAt || bookmark.savedAt,
+    updatedAt: bookmark.aiThread.at(-1)?.createdAt || bookmark.savedAt,
+    messages: bookmark.aiThread,
+  }]
+}
 
 function App() {
   const [store, setStore] = useState<AppStore>(EMPTY_STORE)
@@ -116,30 +130,22 @@ function App() {
 
   useEffect(() => window.marginalia.browser.onState(setBrowserState), [])
 
-  useEffect(() => window.marginalia.browser.onAiExchange(({ user, assistant }) => {
+  useEffect(() => window.marginalia.browser.onAiConversationsChange((aiConversations) => {
     if (!currentId) return
     setStore((previous) => ({
       ...previous,
       bookmarks: previous.bookmarks.map((bookmark) => bookmark.id === currentId
-        ? { ...bookmark, aiThread: [...(bookmark.aiThread ?? []), user, assistant] }
+        ? { ...bookmark, aiConversations, aiThread: undefined }
         : bookmark),
     }))
   }), [currentId])
 
-  useEffect(() => window.marginalia.browser.onAiClear(() => {
-    if (!currentId) return
-    setStore((previous) => ({
-      ...previous,
-      bookmarks: previous.bookmarks.map((bookmark) => bookmark.id === currentId ? { ...bookmark, aiThread: [] } : bookmark),
-    }))
-  }), [currentId])
-
   useEffect(() => window.marginalia.browser.onAiReady(() => {
-    window.marginalia.browser.aiThread(current?.aiThread ?? [])
-  }), [current?.id, current?.aiThread])
+    window.marginalia.browser.aiConversations(bookmarkAiConversations(current))
+  }), [current?.id, current?.aiConversations, current?.aiThread])
 
   useEffect(() => {
-    if (view === 'reader' && current) window.marginalia.browser.aiThread(current.aiThread ?? [])
+    if (view === 'reader' && current) window.marginalia.browser.aiConversations(bookmarkAiConversations(current))
   }, [view, current?.id])
 
   useEffect(() => window.marginalia.browser.onProgress((progress) => {

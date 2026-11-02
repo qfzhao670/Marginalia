@@ -219,7 +219,7 @@ window.addEventListener('DOMContentLoaded', () => {
       bottom: 74px;
       display: grid;
       grid-template-rows: auto minmax(0,1fr) auto;
-      width: min(520px, calc(100vw - 28px));
+      width: min(680px, calc(100vw - 28px));
       height: min(720px, calc(100vh - 96px));
       overflow: hidden;
       border: 1px solid #dedede;
@@ -245,9 +245,12 @@ window.addEventListener('DOMContentLoaded', () => {
     .header-actions { display: flex; gap: 2px; }
     .icon-button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; color: #777; background: transparent; cursor: pointer; }
     .icon-button:hover { color: #171717; background: #f2f2f2; }
+    .icon-button:disabled { opacity: .38; cursor: default; }
     .companion.settings-mode .header-actions .settings { color: #244bdb; background: #edf1ff; }
-    .companion.settings-mode .header-actions .clear { display: none; }
-    .companion.settings-mode .thread, .companion.settings-mode .composer-shell { display: none; }
+    .companion.settings-mode .header-actions .new-chat, .companion.settings-mode .header-actions .history { display: none; }
+    .companion.settings-mode .thread, .companion.settings-mode .composer-shell, .companion.settings-mode .history-view { display: none; }
+    .companion.history-mode .header-actions .history { color: #244bdb; background: #edf1ff; }
+    .companion.history-mode .thread, .companion.history-mode .composer-shell { display: none; }
     .thread { min-height: 0; padding: 24px 28px 30px; overflow: auto; background: #fff; scrollbar-width: thin; scrollbar-color: #d6d6d6 transparent; }
     .welcome { max-width: 430px; margin: 34px auto 0; padding: 0; }
     .welcome h2 { margin: 0; color: #171717; font-size: 25px; font-weight: 650; line-height: 1.25; letter-spacing: -.02em; }
@@ -305,6 +308,21 @@ window.addEventListener('DOMContentLoaded', () => {
     .send svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .send:disabled { color: #aaa; background: #e7e7e7; cursor: default; }
     .privacy { margin: 0 10px 2px; color: #aaa; font-size: 9px; text-align: center; }
+    .history-view { display: none; grid-row: 2 / 4; min-height: 0; flex-direction: column; overflow: hidden; background: #fafafa; }
+    .companion.history-mode .history-view { display: flex; }
+    .history-heading { padding: 22px 24px 14px; border-bottom: 1px solid #ececec; background: #fff; }
+    .history-heading strong { display: block; color: #202020; font-size: 15px; font-weight: 650; }
+    .history-heading span { display: block; margin-top: 5px; color: #7b7b7b; font-size: 11px; line-height: 1.5; }
+    .history-list { min-height: 0; padding: 10px; overflow: auto; }
+    .history-empty { margin: 44px auto; color: #898989; font-size: 12px; text-align: center; }
+    .history-row { display: grid; grid-template-columns: minmax(0,1fr) 34px; gap: 5px; margin-bottom: 5px; }
+    .history-open { min-width: 0; padding: 11px 13px; border: 1px solid transparent; border-radius: 10px; color: #252525; background: transparent; text-align: left; cursor: pointer; }
+    .history-open:hover { border-color: #dedede; background: #fff; }
+    .history-open strong, .history-open span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .history-open strong { font-size: 12px; font-weight: 600; }
+    .history-open span { margin-top: 5px; color: #858585; font-size: 10px; }
+    .history-delete { align-self: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; color: #999; background: transparent; cursor: pointer; }
+    .history-delete:hover { color: #a33b32; background: #f8eae8; }
     .settings-view { display: none; grid-row: 2 / 4; min-height: 0; padding: 18px 16px 20px; overflow: auto; background: #fbfcfd; }
     .companion.settings-mode .settings-view { display: block; }
     .settings-intro { margin: 0 0 16px; color: #667085; font-size: 11px; line-height: 1.65; }
@@ -338,8 +356,9 @@ window.addEventListener('DOMContentLoaded', () => {
         <span class="header-glyph">M</span>
         <div class="panel-title"><strong>阅读伴航</strong><span></span></div>
         <div class="header-actions">
+          <button class="icon-button history" type="button" title="历史对话" aria-label="查看历史对话">◷</button>
+          <button class="icon-button new-chat" type="button" title="新对话" aria-label="开始新对话">＋</button>
           <button class="icon-button settings" type="button" title="AI 设置" aria-label="打开 AI 设置">⚙</button>
-          <button class="icon-button clear" type="button" title="清空对话" aria-label="清空对话">↺</button>
           <button class="icon-button close" type="button" title="收起" aria-label="收起阅读伴航">×</button>
         </div>
       </header>
@@ -349,6 +368,10 @@ window.addEventListener('DOMContentLoaded', () => {
         <div class="composer"><textarea rows="1" placeholder="问问这篇文章…" aria-label="向阅读伴航提问"></textarea><button class="send" type="button" aria-label="发送"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg></button></div>
         <p class="privacy">回答基于当前网页；重要信息请回到原文核对</p>
       </div>
+      <section class="history-view" aria-label="历史对话">
+        <div class="history-heading"><strong>这个网页的对话</strong><span>选择一条历史对话继续追问，或开始一条新对话。</span></div>
+        <div class="history-list"></div>
+      </section>
       <form class="settings-view">
         <p class="settings-intro">配置 OpenAI-compatible 服务。设置会保存在 Marginalia 本机，不会改变或刷新当前网页。</p>
         <label class="widget-field" for="marginalia-ai-url">服务地址</label>
@@ -376,8 +399,11 @@ window.addEventListener('DOMContentLoaded', () => {
   let connectorTargets = []
   let highlightRanges = new Map()
   let connectorFrame = 0
+  let aiConversations = []
+  let activeConversationId = ''
   let aiMessages = []
   let aiBusy = false
+  let busyConversationId = ''
   let pendingSelection = ''
 
   const aiPanelTitle = companion.querySelector('.panel-title span')
@@ -389,6 +415,9 @@ window.addEventListener('DOMContentLoaded', () => {
   const aiContext = companion.querySelector('.context-banner')
   const aiContextText = aiContext.querySelector('span')
   const panelHeading = companion.querySelector('.panel-title strong')
+  const historyToggle = companion.querySelector('.header-actions .history')
+  const newChatButton = companion.querySelector('.header-actions .new-chat')
+  const historyList = companion.querySelector('.history-list')
   const settingsToggle = companion.querySelector('.header-actions .settings')
   const settingsForm = companion.querySelector('.settings-view')
   const settingsUrl = companion.querySelector('.settings-url')
@@ -435,7 +464,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   const placePanel = () => {
-    const panelWidth = Math.min(520, window.innerWidth - 28)
+    const panelWidth = Math.min(680, window.innerWidth - 28)
     const panelHeight = Math.min(720, window.innerHeight - 96)
     const canOpenRight = companionX + panelWidth <= window.innerWidth - VIEWPORT_GUTTER
     const canOpenBelow = companionY + 74 + panelHeight <= window.innerHeight - VIEWPORT_GUTTER
@@ -445,8 +474,11 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   const setAiOpen = (open) => {
+    const wasOpen = companion.classList.contains('open')
+    if (open && !wasOpen) startNewConversation()
     if (open) placePanel()
     if (!open && companion.classList.contains('settings-mode')) leaveWidgetSettings()
+    if (!open) companion.classList.remove('history-mode')
     companion.classList.toggle('open', open)
     aiOrb.setAttribute('aria-expanded', String(open))
     aiOrb.setAttribute('aria-label', open ? '收起阅读伴航，可拖动' : '打开阅读伴航，可拖动')
@@ -476,6 +508,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   const enterWidgetSettings = async () => {
+    companion.classList.remove('history-mode')
     companion.classList.add('settings-mode')
     panelHeading.textContent = 'AI 设置'
     settingsToggle.textContent = '←'
@@ -845,16 +878,110 @@ window.addEventListener('DOMContentLoaded', () => {
         addMessageElement(message)
       })
     }
+    const activeBusy = aiBusy && busyConversationId === activeConversationId
     const streamingAnswer = aiMessages.find((message) => message.role === 'assistant' && message.streaming)
-    if (aiBusy && !streamingAnswer?.content) {
+    if (activeBusy && !streamingAnswer?.content) {
       const thinking = document.createElement('article')
       thinking.className = 'message assistant'
       thinking.innerHTML = '<div class="message-label">伴航正在阅读</div><div class="thinking"><i></i><i></i><i></i></div>'
       aiThread.appendChild(thinking)
     }
     aiSend.disabled = aiBusy
+    newChatButton.disabled = aiBusy
+    historyToggle.disabled = aiBusy
     companion.classList.toggle('thinking', aiBusy)
     scrollAiToEnd()
+  }
+
+  const conversationDate = (value) => {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return ''
+    return new Intl.DateTimeFormat('zh-CN', {
+      month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+    }).format(date)
+  }
+
+  const renderConversationHistory = () => {
+    historyList.replaceChildren()
+    const conversations = [...aiConversations].sort((left, right) =>
+      new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+    if (!conversations.length) {
+      const empty = document.createElement('p')
+      empty.className = 'history-empty'
+      empty.textContent = '还没有历史对话'
+      historyList.appendChild(empty)
+      return
+    }
+    conversations.forEach((conversation) => {
+      const row = document.createElement('div')
+      row.className = 'history-row'
+      const open = document.createElement('button')
+      open.type = 'button'
+      open.className = 'history-open'
+      const title = document.createElement('strong')
+      title.textContent = conversation.title || '未命名对话'
+      const meta = document.createElement('span')
+      meta.textContent = `${conversationDate(conversation.updatedAt)} · ${Math.ceil(conversation.messages.length / 2)} 轮`
+      open.append(title, meta)
+      open.addEventListener('click', () => {
+        activeConversationId = conversation.id
+        aiMessages = [...conversation.messages]
+        pendingSelection = ''
+        updateContextBanner()
+        companion.classList.remove('history-mode')
+        renderAiThread()
+        aiTextarea.focus()
+      })
+      const remove = document.createElement('button')
+      remove.type = 'button'
+      remove.className = 'history-delete'
+      remove.title = '删除对话'
+      remove.setAttribute('aria-label', `删除对话：${conversation.title || '未命名对话'}`)
+      remove.textContent = '×'
+      remove.addEventListener('click', () => {
+        if (!window.confirm(`删除“${conversation.title || '未命名对话'}”？此操作无法撤销。`)) return
+        aiConversations = aiConversations.filter((item) => item.id !== conversation.id)
+        if (activeConversationId === conversation.id) startNewConversation()
+        ipcRenderer.send('page:ai-conversations-change', aiConversations)
+        renderConversationHistory()
+      })
+      row.append(open, remove)
+      historyList.appendChild(row)
+    })
+  }
+
+  const startNewConversation = () => {
+    activeConversationId = crypto.randomUUID()
+    aiMessages = []
+    pendingSelection = ''
+    companion.classList.remove('history-mode', 'settings-mode')
+    panelHeading.textContent = '阅读伴航'
+    updateContextBanner()
+    renderAiThread()
+  }
+
+  const persistConversation = (conversationId, messages) => {
+    const persistedMessages = messages.filter((message) => !message.transient && String(message.content || '').trim()).map((message) => ({
+      id: message.id,
+      role: message.role,
+      content: message.content,
+      createdAt: message.createdAt,
+      ...(message.context ? { context: message.context } : {}),
+    }))
+    const firstUser = persistedMessages.find((message) => message.role === 'user')
+    if (!firstUser) return
+    const existing = aiConversations.find((conversation) => conversation.id === conversationId)
+    const now = new Date().toISOString()
+    const conversation = {
+      id: conversationId,
+      title: firstUser.content.replace(/\s+/g, ' ').trim().slice(0, 36) || '未命名对话',
+      createdAt: existing?.createdAt || firstUser.createdAt || now,
+      updatedAt: now,
+      messages: persistedMessages,
+    }
+    aiConversations = [conversation, ...aiConversations.filter((item) => item.id !== conversationId)]
+    ipcRenderer.send('page:ai-conversations-change', aiConversations)
+    renderConversationHistory()
   }
 
   const requestAiStream = (payload, onChunk) => new Promise((resolve, reject) => {
@@ -895,7 +1022,10 @@ window.addEventListener('DOMContentLoaded', () => {
   const askAi = async (rawQuestion, selection = pendingSelection) => {
     const question = String(rawQuestion || '').trim()
     if (!question || aiBusy) return
-    const history = aiMessages.filter((message) => !message.transient).map(({ role, content }) => ({ role, content }))
+    if (!activeConversationId) activeConversationId = crypto.randomUUID()
+    const conversationId = activeConversationId
+    const conversationMessages = aiMessages
+    const history = conversationMessages.filter((message) => !message.transient).map(({ role, content }) => ({ role, content }))
     const user = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -910,19 +1040,21 @@ window.addEventListener('DOMContentLoaded', () => {
       createdAt: new Date().toISOString(),
       streaming: true,
     }
-    aiMessages.push(user, assistant)
+    conversationMessages.push(user, assistant)
     pendingSelection = ''
     updateContextBanner()
     aiTextarea.value = ''
     aiTextarea.style.height = 'auto'
     aiBusy = true
+    busyConversationId = conversationId
+    persistConversation(conversationId, conversationMessages)
     renderAiThread()
     let renderFrame = 0
     const renderStream = () => {
       if (renderFrame) return
       renderFrame = window.requestAnimationFrame(() => {
         renderFrame = 0
-        renderAiThread()
+        if (activeConversationId === conversationId) renderAiThread()
       })
     }
     try {
@@ -931,7 +1063,7 @@ window.addEventListener('DOMContentLoaded', () => {
         renderStream()
       })
       assistant.streaming = false
-      ipcRenderer.send('page:ai-exchange', { user, assistant })
+      persistConversation(conversationId, conversationMessages)
     } catch (error) {
       const message = error?.message || '暂时无法获得回答，请检查 AI 设置后重试。'
       assistant.streaming = false
@@ -941,8 +1073,9 @@ window.addEventListener('DOMContentLoaded', () => {
     } finally {
       if (renderFrame) window.cancelAnimationFrame(renderFrame)
       aiBusy = false
+      busyConversationId = ''
       renderAiThread()
-      aiTextarea.focus()
+      if (companion.classList.contains('open')) aiTextarea.focus()
     }
   }
 
@@ -1058,10 +1191,13 @@ window.addEventListener('DOMContentLoaded', () => {
       settingsSave.textContent = '保存配置'
     }
   })
-  companion.querySelector('.clear').addEventListener('click', () => {
-    aiMessages = []
-    renderAiThread()
-    ipcRenderer.send('page:ai-clear')
+  historyToggle.addEventListener('click', () => {
+    companion.classList.toggle('history-mode')
+    renderConversationHistory()
+  })
+  newChatButton.addEventListener('click', () => {
+    startNewConversation()
+    aiTextarea.focus()
   })
   aiContext.querySelector('button').addEventListener('click', () => {
     pendingSelection = ''
@@ -1074,13 +1210,18 @@ window.addEventListener('DOMContentLoaded', () => {
   })
   aiTextarea.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
+      if (event.isComposing || event.keyCode === 229) return
       event.preventDefault()
       askAi(aiTextarea.value)
     }
   })
-  ipcRenderer.on('page:ai-thread', (_event, messages) => {
-    aiMessages = Array.isArray(messages) ? messages.filter((message) => message?.role && message?.content) : []
-    renderAiThread()
+  ipcRenderer.on('page:ai-conversations', (_event, conversations) => {
+    aiConversations = Array.isArray(conversations) ? conversations.filter((conversation) =>
+      conversation?.id && Array.isArray(conversation.messages)).map((conversation) => ({
+        ...conversation,
+        messages: conversation.messages.filter((message) => message?.role && message?.content),
+      })) : []
+    renderConversationHistory()
   })
   ipcRenderer.on('page:ask-selection-direct', (_event, payload) => {
     const text = String(payload?.text || '').replace(/\s+/g, ' ').trim().slice(0, 5000)

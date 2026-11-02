@@ -32,6 +32,14 @@ export type AiMessage = {
   }
 }
 
+export type AiConversation = {
+  id: string
+  title: string
+  createdAt: string
+  updatedAt: string
+  messages: AiMessage[]
+}
+
 export type AiConfig = {
   baseUrl: string
   model: string
@@ -53,6 +61,8 @@ export type Bookmark = {
   contentText: string
   offlinePath?: string
   annotations: Annotation[]
+  aiConversations?: AiConversation[]
+  /** Legacy single-thread storage, migrated when conversations are next changed. */
   aiThread?: AiMessage[]
 }
 

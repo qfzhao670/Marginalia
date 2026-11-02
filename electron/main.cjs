@@ -609,9 +609,9 @@ ipcMain.handle('browser:connectors', (event, items) => {
   return true
 })
 
-ipcMain.handle('browser:ai-thread', (event, messages) => {
+ipcMain.handle('browser:ai-conversations', (event, conversations) => {
   if (!mainWindow || event.sender !== mainWindow.webContents) return false
-  if (pageView && !pageView.webContents.isDestroyed()) pageView.webContents.send('page:ai-thread', Array.isArray(messages) ? messages : [])
+  if (pageView && !pageView.webContents.isDestroyed()) pageView.webContents.send('page:ai-conversations', Array.isArray(conversations) ? conversations : [])
   return true
 })
 
@@ -656,14 +656,9 @@ ipcMain.on('page:ai-stream', async (event, payload = {}) => {
   }
 })
 
-ipcMain.on('page:ai-exchange', (event, payload) => {
+ipcMain.on('page:ai-conversations-change', (event, payload) => {
   if (!pageView || event.sender !== pageView.webContents || !mainWindow) return
-  mainWindow.webContents.send('browser:ai-exchange', payload)
-})
-
-ipcMain.on('page:ai-clear', (event) => {
-  if (!pageView || event.sender !== pageView.webContents || !mainWindow) return
-  mainWindow.webContents.send('browser:ai-clear')
+  mainWindow.webContents.send('browser:ai-conversations-change', Array.isArray(payload) ? payload : [])
 })
 
 ipcMain.on('page:ai-ready', (event) => {
