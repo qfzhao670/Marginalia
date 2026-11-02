@@ -147,11 +147,11 @@ h1 { margin: 0; font-family: var(--serif); font-size: clamp(34px, 3.2vw, 48px); 
 .reader-toolbar .quiet.active { border-color: #aebdf7; background: var(--blue-soft); color: #244bdb; }
 .save-state { min-height: 40px; padding: 0 13px; font-size: 12px; }
 .save-state.active { border-color: #e8d246; background: #fffbe0; color: #8a7200; }
-.reader-body { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); overflow: hidden; }
+.reader-body { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); overflow: hidden; }
 .reader-body.with-notes { grid-template-columns: minmax(0, 1fr) 430px; }
 .browser-viewport { position: relative; min-width: 0; min-height: 0; background: white; }
 .browser-placeholder { display: flex; align-items: center; justify-content: center; gap: 10px; height: 100%; color: var(--muted); }
-.notes-panel { position: relative; display: grid; grid-template-rows: minmax(0, 1fr); min-width: 0; border-left: 0; background: linear-gradient(180deg, #fbfcfd, #f6f8fb); box-shadow: inset 1px 0 #dce2eb; }
+.notes-panel { position: relative; display: grid; grid-template-rows: minmax(0, 1fr); min-width: 0; min-height: 0; overflow: hidden; border-left: 0; background: linear-gradient(180deg, #fbfcfd, #f6f8fb); box-shadow: inset 1px 0 #dce2eb; }
 .notes-panel::before { content: none; }
 .annotation-list { position: relative; z-index: 2; min-height: 0; padding: 26px 16px 34px 36px; overflow: auto; scrollbar-width: thin; scrollbar-color: #cfd6e1 transparent; }
 .annotation-list::-webkit-scrollbar { width: 7px; }
