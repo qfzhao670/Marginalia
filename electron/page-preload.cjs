@@ -16,11 +16,11 @@ window.addEventListener('DOMContentLoaded', () => {
   connectorStyle.textContent = `
     :host { display: block; width: 100%; height: 100%; }
     svg { display: block; width: 100%; height: 100%; overflow: hidden; }
-    path { fill: none; stroke: #2f5bff; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-    circle { fill: #2f5bff; }
-    rect { fill: rgba(255,255,255,.99); stroke: #aebdf7; stroke-width: 1; filter: drop-shadow(0 2px 5px rgba(20,33,61,.12)); vector-effect: non-scaling-stroke; }
+    path { fill: none; stroke: #404040; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+    circle { fill: #212121; }
+    rect { fill: rgba(255,255,255,.99); stroke: #bdbdbd; stroke-width: 1; filter: drop-shadow(0 2px 5px rgba(0,0,0,.1)); vector-effect: non-scaling-stroke; }
     text {
-      fill: #244bdb;
+      fill: #212121;
       font: 650 11px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
       text-anchor: middle;
       dominant-baseline: central;
@@ -87,13 +87,13 @@ window.addEventListener('DOMContentLoaded', () => {
       padding: 0 9px;
       border: 0;
       border-radius: 4px;
-      color: #26344d;
+      color: #303030;
       background: transparent;
       font: 600 12px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
       cursor: pointer;
       transition: color 120ms ease, background 120ms ease;
     }
-    button:hover { color: #244bdb; background: #edf1ff; }
+    button:hover { color: #111; background: #f0f0f0; }
     button + button { border-left: 1px solid #e2e6ed; border-radius: 0 4px 4px 0; }
     .selection-bar[data-placement="below"]::before,
     .selection-bar[data-placement="below"]::after {
@@ -127,7 +127,7 @@ window.addEventListener('DOMContentLoaded', () => {
       left: 2px;
       height: 2px;
       border-radius: 999px;
-      background: #2f5bff;
+      background: #212121;
       opacity: .85;
     }
     @keyframes highlight-tool-in {
@@ -163,7 +163,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const aiShadow = aiHost.attachShadow({ mode: 'closed' })
   const aiStyle = document.createElement('style')
   aiStyle.textContent = `
-    :host { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif; }
+    :host { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif; }
     * { box-sizing: border-box; }
     .companion { position: relative; width: 60px; height: 60px; pointer-events: auto; }
     .orb {
@@ -208,7 +208,8 @@ window.addEventListener('DOMContentLoaded', () => {
     .orb:hover { transform: translateY(-2px) scale(1.035); box-shadow: 0 18px 38px rgba(20,33,61,.34), 0 4px 10px rgba(20,33,61,.18); }
     .orb:active { transform: scale(.98); }
     .companion.dragging .orb { cursor: grabbing; transform: scale(1.055); transition: none; box-shadow: 0 20px 42px rgba(20,33,61,.36); }
-    .orb:focus-visible, button:focus-visible { outline: 2px solid #2f5bff; outline-offset: 3px; }
+    .orb:focus-visible { outline: 2px solid #2f5bff; outline-offset: 3px; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid #212121; outline-offset: 3px; }
     .orb-mark { position: relative; z-index: 3; color: rgba(255,255,255,.96); font: 700 22px/1 Georgia, serif; letter-spacing: -.08em; text-shadow: 0 1px 5px rgba(6,22,67,.42); transform: translateX(-1px); pointer-events: none; }
     .orb-note { position: absolute; right: 2px; bottom: 4px; z-index: 4; width: 15px; height: 12px; border: 2px solid #2f5bff; border-radius: 2px; background: #f4e66a; box-shadow: 0 2px 5px rgba(20,33,61,.2); transform: rotate(-7deg); pointer-events: none; }
     .companion.thinking .orb::before { animation-duration: 1.15s; }
@@ -222,10 +223,10 @@ window.addEventListener('DOMContentLoaded', () => {
       width: min(680px, calc(100vw - 28px));
       height: min(720px, calc(100vh - 96px));
       overflow: hidden;
-      border: 1px solid #dedede;
-      border-radius: 18px 18px 7px 18px;
-      background: rgba(255,255,255,.99);
-      box-shadow: 0 24px 72px rgba(0,0,0,.18), 0 3px 12px rgba(0,0,0,.08);
+      border: 1px solid #e1e1e1;
+      border-radius: 22px;
+      background: #fff;
+      box-shadow: 0 24px 72px rgba(0,0,0,.16), 0 2px 10px rgba(0,0,0,.06);
       opacity: 0;
       visibility: hidden;
       transform: translateY(12px) scale(.975);
@@ -237,32 +238,32 @@ window.addEventListener('DOMContentLoaded', () => {
     .companion[data-panel-h="right"][data-panel-v="below"] .panel { transform-origin: left top; }
     .companion.open .panel { opacity: 1; visibility: visible; transform: translateY(0) scale(1); }
     .companion.open .orb { box-shadow: 0 0 0 4px rgba(47,91,255,.16), 0 12px 30px rgba(20,33,61,.25); }
-    .panel-header { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 11px; min-height: 62px; padding: 11px 12px 11px 16px; border-bottom: 1px solid #ececec; background: rgba(255,255,255,.96); }
-    .header-glyph { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: white; background: #17213a; font: 700 14px/1 Georgia, serif; }
+    .panel-header { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 11px; min-height: 64px; padding: 11px 12px 11px 18px; border-bottom: 1px solid #ececec; background: rgba(255,255,255,.96); }
+    .header-glyph { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: white; background: #212121; font: 700 14px/1 Georgia, serif; }
     .panel-title { min-width: 0; }
-    .panel-title strong { display: block; color: #171717; font-size: 15px; font-weight: 650; line-height: 1.25; }
+    .panel-title strong { display: block; color: #171717; font-size: 15px; font-weight: 600; line-height: 1.25; }
     .panel-title span { display: block; margin-top: 3px; overflow: hidden; color: #8a8a8a; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
     .header-actions { display: flex; gap: 2px; }
     .icon-button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; color: #777; background: transparent; cursor: pointer; }
     .icon-button:hover { color: #171717; background: #f2f2f2; }
     .icon-button:disabled { opacity: .38; cursor: default; }
-    .companion.settings-mode .header-actions .settings { color: #244bdb; background: #edf1ff; }
+    .companion.settings-mode .header-actions .settings { color: #171717; background: #f1f1f1; }
     .companion.settings-mode .header-actions .new-chat, .companion.settings-mode .header-actions .history { display: none; }
     .companion.settings-mode .thread, .companion.settings-mode .composer-shell, .companion.settings-mode .history-view { display: none; }
-    .companion.history-mode .header-actions .history { color: #244bdb; background: #edf1ff; }
+    .companion.history-mode .header-actions .history { color: #171717; background: #f1f1f1; }
     .companion.history-mode .thread, .companion.history-mode .composer-shell { display: none; }
-    .thread { min-height: 0; padding: 24px 28px 30px; overflow: auto; background: #fff; scrollbar-width: thin; scrollbar-color: #d6d6d6 transparent; }
-    .welcome { max-width: 430px; margin: 34px auto 0; padding: 0; }
-    .welcome h2 { margin: 0; color: #171717; font-size: 25px; font-weight: 650; line-height: 1.25; letter-spacing: -.02em; }
-    .welcome p { margin: 10px 0 24px; color: #6f6f6f; font-size: 13px; line-height: 1.65; }
-    .quick-actions { display: grid; gap: 9px; }
-    .quick-action { display: grid; grid-template-columns: 30px 1fr; align-items: center; gap: 10px; min-height: 52px; padding: 9px 12px; border: 1px solid #e3e3e3; border-radius: 13px; color: #292929; background: #fff; text-align: left; font: 500 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif; cursor: pointer; }
-    .quick-action:hover { border-color: #c9c9c9; background: #f7f7f7; }
-    .quick-action b { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; color: #294bd8; background: #eef2ff; font-family: Georgia, serif; }
+    .thread { min-height: 0; padding: 24px 30px 34px; overflow: auto; background: #fff; scrollbar-width: thin; scrollbar-color: #d6d6d6 transparent; }
+    .welcome { max-width: 460px; margin: 38px auto 0; padding: 0; }
+    .welcome h2 { margin: 0; color: #171717; font-size: 26px; font-weight: 600; line-height: 1.28; letter-spacing: -.025em; }
+    .welcome p { margin: 10px 0 26px; color: #6b6b6b; font-size: 13px; line-height: 1.65; }
+    .quick-actions { display: grid; gap: 8px; }
+    .quick-action { display: grid; grid-template-columns: 32px 1fr; align-items: center; gap: 11px; min-height: 54px; padding: 9px 12px; border: 0; border-radius: 14px; color: #2f2f2f; background: #f7f7f7; text-align: left; font: 500 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif; cursor: pointer; transition: background 140ms ease; }
+    .quick-action:hover { background: #ececec; }
+    .quick-action b { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid #dedede; border-radius: 9px; color: #404040; background: #fff; font-family: Georgia, serif; font-size: 13px; font-weight: 600; }
     .message { position: relative; margin: 0 0 28px; padding: 0; }
     .message.user { display: flex; flex-direction: column; align-items: flex-end; margin: 2px 0 26px; }
     .message-label { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; color: #3f3f3f; font-size: 12px; font-weight: 600; }
-    .message.assistant .message-label::before { content: "M"; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: #fff; background: #17213a; font: 700 11px/1 Georgia, serif; }
+    .message.assistant .message-label::before { content: "M"; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: #fff; background: #212121; font: 700 11px/1 Georgia, serif; }
     .message.user .message-label { display: none; }
     .message-body { color: #242424; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 14.5px; line-height: 1.72; letter-spacing: .005em; overflow-wrap: anywhere; }
     .message.user .message-body { max-width: 86%; padding: 10px 14px; border-radius: 18px 18px 5px 18px; color: #242424; background: #f2f2f2; line-height: 1.6; white-space: pre-wrap; }
@@ -284,29 +285,29 @@ window.addEventListener('DOMContentLoaded', () => {
     .message-body pre code { padding: 0; border: 0; color: #242424; background: transparent; white-space: pre; }
     .message-body blockquote { margin: 12px 0 16px; padding: 8px 12px; border-left: 3px solid #b8b8b8; color: #555; background: #f7f7f7; }
     .message-body blockquote p { margin: 0; }
-    .message-body a { color: #244bdb; text-decoration: underline; text-decoration-color: rgba(36,75,219,.35); text-underline-offset: 2px; }
+    .message-body a { color: #212121; text-decoration: underline; text-decoration-color: #8f8f8f; text-underline-offset: 2px; }
     .message-body hr { height: 1px; margin: 14px 0; border: 0; background: #dfe3ea; }
     .message-body table { width: 100%; margin: 14px 0 16px; border-collapse: collapse; font-family: inherit; font-size: 12px; line-height: 1.55; }
     .message-body th, .message-body td { padding: 8px 9px; border: 1px solid #dedede; text-align: left; vertical-align: top; }
     .message-body th { color: #242424; background: #f5f5f5; font-weight: 650; }
-    .message-body.streaming::after { content: ""; display: inline-block; width: 6px; height: 13px; margin-left: 2px; vertical-align: -2px; background: #2f5bff; animation: stream-caret .8s steps(1) infinite; }
+    .message-body.streaming::after { content: ""; display: inline-block; width: 6px; height: 13px; margin-left: 2px; vertical-align: -2px; background: #212121; animation: stream-caret .8s steps(1) infinite; }
     .source { display: -webkit-box; max-width: 86%; margin: 7px 0 0; padding: 7px 10px; overflow: hidden; border-radius: 9px; color: #777; background: #fafafa; font-size: 10px; line-height: 1.5; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
     .thinking { display: inline-flex; gap: 4px; padding: 7px 0; }
-    .thinking i { width: 5px; height: 5px; border-radius: 50%; background: #2f5bff; animation: blink 1s infinite ease-in-out; }
+    .thinking i { width: 5px; height: 5px; border-radius: 50%; background: #555; animation: blink 1s infinite ease-in-out; }
     .thinking i:nth-child(2) { animation-delay: .15s; }.thinking i:nth-child(3) { animation-delay: .3s; }
-    .context-banner { display: none; grid-column: 1 / -1; align-items: flex-start; gap: 9px; min-width: 0; margin: 1px 2px 2px 0; padding: 7px 9px; border-left: 3px solid #9aa9e8; border-radius: 7px; color: #5e6675; background: #f4f6fc; font-size: 10px; line-height: 1.5; }
+    .context-banner { display: none; grid-column: 1 / -1; align-items: flex-start; gap: 9px; min-width: 0; margin: 0 0 1px; padding: 8px 10px; border-left: 2px solid #b4b4b4; border-radius: 9px; color: #6b6b6b; background: #e7e7e7; font-size: 10px; line-height: 1.5; }
     .context-banner.visible { display: flex; }
     .context-banner span { display: -webkit-box; flex: 1; min-width: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
-    .context-banner span::before { content: "引用原文"; display: block; margin-bottom: 2px; color: #34478f; font-weight: 650; }
-    .context-banner button { flex: 0 0 auto; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 4px; color: #687184; background: transparent; cursor: pointer; }
-    .context-banner button:hover { color: #29334a; background: #e6eaf7; }
-    .composer-shell { padding: 12px 16px 8px; border-top: 0; background: linear-gradient(to bottom, rgba(255,255,255,.9), #fff 18%); }
-    .composer { display: grid; grid-template-columns: minmax(0,1fr) 36px; align-items: end; gap: 8px; min-height: 56px; margin: 0 0 7px; padding: 7px 8px 7px 16px; border: 1px solid #d9d9d9; border-radius: 20px; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.07); transition: border-color 140ms ease, box-shadow 140ms ease; }
-    .composer:focus-within { border-color: #b8b8b8; box-shadow: 0 3px 16px rgba(0,0,0,.1); }
+    .context-banner span::before { content: "引用原文"; display: block; margin-bottom: 2px; color: #303030; font-weight: 650; }
+    .context-banner button { flex: 0 0 auto; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 4px; color: #6b6b6b; background: transparent; cursor: pointer; }
+    .context-banner button:hover { color: #202020; background: #dedede; }
+    .composer-shell { padding: 12px 16px 8px; border-top: 0; background: #fff; }
+    .composer { display: grid; grid-template-columns: minmax(0,1fr) 36px; align-items: end; gap: 8px; min-height: 58px; margin: 0 0 7px; padding: 10px 10px 10px 14px; border: 1px solid transparent; border-radius: 26px; background: #f4f4f4; box-shadow: none; transition: border-color 140ms ease; }
+    .composer:focus-within { border-color: #c7c7c7; background: #f4f4f4; box-shadow: none; }
     textarea { display: block; width: 100%; min-height: 36px; max-height: 120px; padding: 8px 0 7px; resize: none; overflow-y: auto; border: 0; outline: 0 !important; box-shadow: none !important; color: #222; background: transparent; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif; }
-    textarea::placeholder { color: #999; }
+    textarea::placeholder { color: #8c8c8c; }
     .send { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; color: white; background: #212121; box-shadow: none; cursor: pointer; }
-    .send:hover:not(:disabled) { background: #000; transform: translateY(-1px); }
+    .send:hover:not(:disabled) { background: #000; }
     .send svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .send:disabled { color: #aaa; background: #e7e7e7; cursor: default; }
     .privacy { margin: 0 10px 2px; color: #aaa; font-size: 9px; text-align: center; }
@@ -325,23 +326,23 @@ window.addEventListener('DOMContentLoaded', () => {
     .history-open span { margin-top: 5px; color: #858585; font-size: 10px; }
     .history-delete { align-self: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; color: #999; background: transparent; cursor: pointer; }
     .history-delete:hover { color: #a33b32; background: #f8eae8; }
-    .settings-view { display: none; grid-row: 2 / 4; min-height: 0; padding: 18px 16px 20px; overflow: auto; background: #fbfcfd; }
+    .settings-view { display: none; grid-row: 2 / 4; min-height: 0; padding: 18px 16px 20px; overflow: auto; background: #fff; }
     .companion.settings-mode .settings-view { display: block; }
-    .settings-intro { margin: 0 0 16px; color: #667085; font-size: 11px; line-height: 1.65; }
-    .widget-field { display: block; margin: 12px 0 6px; color: #3b475b; font-size: 11px; font-weight: 650; }
-    .widget-field span { color: #8a93a2; font-size: 9px; font-weight: 400; }
-    .widget-input { width: 100%; height: 40px; padding: 0 10px; border: 1px solid #cbd2de; border-radius: 6px; outline: 0; color: #26344d; background: white; font: 12px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
-    .widget-input:focus { border-color: #6f8cff; box-shadow: 0 0 0 3px rgba(47,91,255,.1); }
+    .settings-intro { margin: 0 0 16px; color: #6b6b6b; font-size: 11px; line-height: 1.65; }
+    .widget-field { display: block; margin: 12px 0 6px; color: #353535; font-size: 11px; font-weight: 650; }
+    .widget-field span { color: #8a8a8a; font-size: 9px; font-weight: 400; }
+    .widget-input { width: 100%; height: 40px; padding: 0 10px; border: 1px solid #d0d0d0; border-radius: 8px; outline: 0; color: #242424; background: white; font: 12px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+    .widget-input:focus { border-color: #8c8c8c; box-shadow: 0 0 0 3px rgba(0,0,0,.06); }
     .widget-secret { position: relative; }
     .widget-secret .widget-input { padding-right: 86px; }
-    .key-action { position: absolute; top: 4px; right: 4px; height: 32px; padding: 0 9px; border: 0; border-radius: 4px; color: #58657a; background: transparent; font: 550 10px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; cursor: pointer; }
-    .key-action:hover { color: #244bdb; background: #edf1ff; }
+    .key-action { position: absolute; top: 4px; right: 4px; height: 32px; padding: 0 9px; border: 0; border-radius: 4px; color: #666; background: transparent; font: 550 10px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; cursor: pointer; }
+    .key-action:hover { color: #171717; background: #f0f0f0; }
     .key-action.paste { right: 48px; }
     .key-action[hidden] { display: none; }
-    .widget-status { min-height: 18px; margin: 8px 0 0; color: #68758a; font-size: 10px; line-height: 1.5; }
+    .widget-status { min-height: 18px; margin: 8px 0 0; color: #6b6b6b; font-size: 10px; line-height: 1.5; }
     .widget-status.error { color: #b24337; }
-    .widget-save { display: inline-flex; align-items: center; justify-content: center; min-width: 116px; height: 38px; margin-top: 8px; padding: 0 14px; border: 1px solid #2f5bff; border-radius: 6px; color: white; background: #2f5bff; font: 600 11px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; cursor: pointer; }
-    .widget-save:hover { background: #244ce2; }
+    .widget-save { display: inline-flex; align-items: center; justify-content: center; min-width: 116px; height: 38px; margin-top: 8px; padding: 0 14px; border: 1px solid #212121; border-radius: 8px; color: white; background: #212121; font: 600 11px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; cursor: pointer; }
+    .widget-save:hover { background: #000; }
     .widget-save:disabled { opacity: .45; cursor: default; }
     @keyframes blink { 0%,80%,100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
     @keyframes stream-caret { 0%,48% { opacity: 1; } 49%,100% { opacity: 0; } }
