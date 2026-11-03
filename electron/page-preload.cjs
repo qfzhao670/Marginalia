@@ -16,11 +16,11 @@ window.addEventListener('DOMContentLoaded', () => {
   connectorStyle.textContent = `
     :host { display: block; width: 100%; height: 100%; }
     svg { display: block; width: 100%; height: 100%; overflow: hidden; }
-    path { fill: none; stroke: #404040; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-    circle { fill: #212121; }
-    rect { fill: rgba(255,255,255,.99); stroke: #bdbdbd; stroke-width: 1; filter: drop-shadow(0 2px 5px rgba(0,0,0,.1)); vector-effect: non-scaling-stroke; }
+    path { fill: none; stroke: #2f5bff; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+    circle { fill: #2f5bff; }
+    rect { fill: rgba(255,255,255,.99); stroke: #aebdf7; stroke-width: 1; filter: drop-shadow(0 2px 5px rgba(20,33,61,.12)); vector-effect: non-scaling-stroke; }
     text {
-      fill: #212121;
+      fill: #244bdb;
       font: 650 11px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
       text-anchor: middle;
       dominant-baseline: central;
@@ -87,13 +87,13 @@ window.addEventListener('DOMContentLoaded', () => {
       padding: 0 9px;
       border: 0;
       border-radius: 4px;
-      color: #303030;
+      color: #26344d;
       background: transparent;
       font: 600 12px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
       cursor: pointer;
       transition: color 120ms ease, background 120ms ease;
     }
-    button:hover { color: #111; background: #f0f0f0; }
+    button:hover { color: #244bdb; background: #edf1ff; }
     button + button { border-left: 1px solid #e2e6ed; border-radius: 0 4px 4px 0; }
     .selection-bar[data-placement="below"]::before,
     .selection-bar[data-placement="below"]::after {
@@ -127,7 +127,7 @@ window.addEventListener('DOMContentLoaded', () => {
       left: 2px;
       height: 2px;
       border-radius: 999px;
-      background: #212121;
+      background: #2f5bff;
       opacity: .85;
     }
     @keyframes highlight-tool-in {
