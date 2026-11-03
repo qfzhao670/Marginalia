@@ -63,6 +63,52 @@ const sortAnnotationsByCreatedAt = (annotations: Annotation[]) => [...annotation
   return (Number.isNaN(leftTime) ? 0 : leftTime) - (Number.isNaN(rightTime) ? 0 : rightTime)
 })
 
+type AnnotationAnchorPosition = { path: number[]; offset: number }
+
+const annotationAnchorPosition = (annotation: Annotation): AnnotationAnchorPosition | null => {
+  if (!annotation.anchor) return null
+  try {
+    const anchor = JSON.parse(annotation.anchor) as { startPath?: unknown; startOffset?: unknown }
+    if (!Array.isArray(anchor.startPath)
+      || !anchor.startPath.every((part) => Number.isInteger(part) && part >= 0)
+      || !Number.isInteger(anchor.startOffset)
+      || (anchor.startOffset as number) < 0) return null
+    return { path: anchor.startPath as number[], offset: anchor.startOffset as number }
+  } catch {
+    return null
+  }
+}
+
+const compareAnchorPositions = (left: AnnotationAnchorPosition, right: AnnotationAnchorPosition) => {
+  const sharedLength = Math.min(left.path.length, right.path.length)
+  for (let index = 0; index < sharedLength; index += 1) {
+    if (left.path[index] !== right.path[index]) return left.path[index] - right.path[index]
+  }
+  if (left.path.length !== right.path.length) return left.path.length - right.path.length
+  return left.offset - right.offset
+}
+
+const sortAnnotationsByArticleOrder = (annotations: Annotation[]) => {
+  const creationOrder = new Map(sortAnnotationsByCreatedAt(annotations).map((annotation, index) => [annotation.id, index]))
+  return [...annotations].sort((left, right) => {
+    const leftPosition = annotationAnchorPosition(left)
+    const rightPosition = annotationAnchorPosition(right)
+    if (leftPosition && rightPosition) {
+      const positionDifference = compareAnchorPositions(leftPosition, rightPosition)
+      if (positionDifference) return positionDifference
+    } else if (leftPosition || rightPosition) {
+      return leftPosition ? -1 : 1
+    }
+    return (creationOrder.get(left.id) ?? 0) - (creationOrder.get(right.id) ?? 0)
+  })
+}
+
+const annotationLabelMap = (annotations: Annotation[]) => {
+  const creationOrdered = sortAnnotationsByCreatedAt(annotations)
+  const labels = annotationLabels(creationOrdered)
+  return new Map(creationOrdered.map((annotation, index) => [annotation.id, labels[index]]))
+}
+
 const bookmarkAiConversations = (bookmark: Bookmark | null): AiConversation[] => {
   if (!bookmark) return []
   if (bookmark.aiConversations?.length) return bookmark.aiConversations
@@ -214,8 +260,8 @@ function App() {
 
     const viewport = viewportRef.current
     const list = document.querySelector<HTMLElement>('.annotation-list')
-    const orderedAnnotations = sortAnnotationsByCreatedAt(current.annotations)
-    const labels = annotationLabels(orderedAnnotations)
+    const orderedAnnotations = sortAnnotationsByArticleOrder(current.annotations)
+    const labels = annotationLabelMap(current.annotations)
     let frame = 0
     let followFrame = 0
 
@@ -223,7 +269,7 @@ function App() {
       frame = 0
       const viewportRect = viewport.getBoundingClientRect()
       const listRect = list?.getBoundingClientRect()
-      const targets = orderedAnnotations.flatMap((annotation, index) => {
+      const targets = orderedAnnotations.flatMap((annotation) => {
         if (annotation.type !== 'highlight') return []
         const card = document.querySelector<HTMLElement>(`[data-annotation-id="${annotation.id}"]`)
         const badge = card?.querySelector<HTMLElement>('.margin-note-badge')
@@ -231,7 +277,7 @@ function App() {
         const rect = badge.getBoundingClientRect()
         const centerY = rect.top + rect.height / 2
         if (listRect && (centerY < listRect.top || centerY > listRect.bottom)) return []
-        return [{ id: annotation.id, label: labels[index], targetY: centerY - viewportRect.top }]
+        return [{ id: annotation.id, label: labels.get(annotation.id) ?? '', targetY: centerY - viewportRect.top }]
       })
       window.marginalia.browser.connectors(targets)
     }
@@ -621,20 +667,21 @@ function BrowserNotesPanel({ bookmark, onEdit, onDelete, onNoteChange }: {
   onDelete: (id: string) => void
   onNoteChange: (id: string, note: string) => void
 }) {
-  const orderedAnnotations = sortAnnotationsByCreatedAt(bookmark.annotations)
-  const labels = annotationLabels(orderedAnnotations)
+  const orderedAnnotations = sortAnnotationsByArticleOrder(bookmark.annotations)
+  const labels = annotationLabelMap(bookmark.annotations)
+  const latestAnnotation = sortAnnotationsByCreatedAt(bookmark.annotations).at(-1)
   return (
     <aside className="notes-panel">
       <div className="annotation-list">
-        {orderedAnnotations.length ? orderedAnnotations.map((annotation, index) => (
+        {orderedAnnotations.length ? orderedAnnotations.map((annotation) => (
           <AnnotationCard
             key={annotation.id}
             annotation={annotation}
-            label={labels[index]}
+            label={labels.get(annotation.id) ?? ''}
             onEdit={() => onEdit(annotation)}
             onDelete={() => onDelete(annotation.id)}
             onNoteChange={(note) => onNoteChange(annotation.id, note)}
-            focusNote={index === orderedAnnotations.length - 1}
+            focusNote={annotation.id === latestAnnotation?.id}
           />
         )) : <EmptyNotes />}
       </div>
