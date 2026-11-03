@@ -124,9 +124,9 @@ const sortAnnotationsByArticleOrder = (annotations: Annotation[]) => {
 }
 
 const annotationLabelMap = (annotations: Annotation[]) => {
-  const creationOrdered = sortAnnotationsByCreatedAt(annotations)
-  const labels = annotationLabels(creationOrdered)
-  return new Map(creationOrdered.map((annotation, index) => [annotation.id, labels[index]]))
+  const articleOrdered = sortAnnotationsByArticleOrder(annotations)
+  const labels = annotationLabels(articleOrdered)
+  return new Map(articleOrdered.map((annotation, index) => [annotation.id, labels[index]]))
 }
 
 const bookmarkAiConversations = (bookmark: Bookmark | null): AiConversation[] => {
@@ -155,8 +155,9 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [editingTagsFor, setEditingTagsFor] = useState<string | null>(null)
   const [cardMenu, setCardMenu] = useState<string | null>(null)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [previewId, setPreviewId] = useState<string | null>(null)
   const [currentId, setCurrentId] = useState<string | null>(null)
+  const [readerFocusId, setReaderFocusId] = useState<string | null>(null)
   const [notesOpen, setNotesOpen] = useState(true)
   const [browserState, setBrowserState] = useState(EMPTY_BROWSER)
   const [toast, setToast] = useState<ToastState | null>(null)
@@ -275,9 +276,13 @@ function App() {
     }
     const element = viewportRef.current
     const sync = () => window.marginalia.browser.resize(toBounds(element))
-    window.marginalia.browser.open(current.offlinePath || current.url, toBounds(element)).catch(() => {
-      notify('网页无法打开，请检查网络连接', 'danger')
-    })
+    window.marginalia.browser.open(current.offlinePath || current.url, toBounds(element))
+      .then(() => {
+        if (readerFocusId) window.marginalia.browser.action('focus-highlight', readerFocusId)
+      })
+      .catch(() => {
+        notify('网页无法打开，请检查网络连接', 'danger')
+      })
     const observer = new ResizeObserver(sync)
     observer.observe(element)
     window.addEventListener('resize', sync)
@@ -285,7 +290,7 @@ function App() {
       observer.disconnect()
       window.removeEventListener('resize', sync)
     }
-  }, [view, current?.id, current?.url, current?.offlinePath, notesOpen, settingsOpen, notify])
+  }, [view, current?.id, current?.url, current?.offlinePath, notesOpen, settingsOpen, readerFocusId, notify])
 
   useEffect(() => {
     if (view !== 'reader' || !current || !notesOpen || !viewportRef.current) {
@@ -444,10 +449,13 @@ function App() {
     }))
   }, [])
 
-  const openBookmark = useCallback((bookmark: Bookmark) => {
+  const openBookmark = useCallback((bookmark: Bookmark, annotationId?: string) => {
     setCurrentId(bookmark.id)
+    setReaderFocusId(annotationId ?? null)
     setView('reader')
     setCardMenu(null)
+    setPreviewId(null)
+    if (annotationId) setNotesOpen(true)
     updateBookmark(bookmark.id, { readStatus: 'read' })
   }, [updateBookmark])
 
@@ -456,6 +464,8 @@ function App() {
     setView('library')
     setQuery('')
     setCardMenu(null)
+    setPreviewId(null)
+    setReaderFocusId(null)
   }, [])
 
   const filtered = useMemo(() => {
@@ -479,6 +489,7 @@ function App() {
   }), [store.trash, sort])
 
   const scopeTitle = scope.type === 'all' ? '资料库' : scope.type === 'starred' ? '收藏' : scope.type === 'trash' ? '回收站' : scope.tag
+  const previewBookmark = previewId ? store.bookmarks.find((bookmark) => bookmark.id === previewId) ?? null : null
   const counts = {
     all: store.bookmarks.length,
     unread: store.bookmarks.filter((bookmark) => bookmark.readStatus === 'unread').length,
@@ -496,7 +507,7 @@ function App() {
       }
     })
     setCardMenu(null)
-    setExpandedId((expanded) => expanded === id ? null : expanded)
+    setPreviewId((previewing) => previewing === id ? null : previewing)
     notify('已移到回收站')
   }
 
@@ -645,9 +656,8 @@ function App() {
                     key={bookmark.id}
                     bookmark={bookmark}
                     menuOpen={cardMenu === bookmark.id}
-                    expanded={expandedId === bookmark.id}
                     onOpen={() => openBookmark(bookmark)}
-                    onToggleExpanded={() => setExpandedId((id) => id === bookmark.id ? null : bookmark.id)}
+                    onPreview={() => setPreviewId(bookmark.id)}
                     onToggleStar={() => updateBookmark(bookmark.id, { starred: !bookmark.starred })}
                     onToggleMenu={(event) => {
                       event.stopPropagation()
@@ -691,13 +701,23 @@ function App() {
             <div className="browser-viewport" ref={viewportRef} aria-label="内置网页浏览区域">
               <div className="browser-placeholder"><LoaderCircle className="spin" />正在打开 {current.domain}</div>
             </div>
-            {notesOpen && <BrowserNotesPanel bookmark={current} onEdit={updateAnnotation} onDelete={deleteAnnotation} onNoteChange={updateHighlightNote} onToggleUpgrade={toggleAnnotationUpgrade} />}
+            {notesOpen && <BrowserNotesPanel bookmark={current} focusedAnnotationId={readerFocusId} onEdit={updateAnnotation} onDelete={deleteAnnotation} onNoteChange={updateHighlightNote} onToggleUpgrade={toggleAnnotationUpgrade} />}
           </div>
           <div className="reader-progress"><span style={{ width: `${current.progress}%` }} /></div>
         </main>
       ) : null}
 
       {query && <SearchDialog query={query.trim()} setQuery={setQuery} bookmarks={store.bookmarks} onOpen={openBookmark} />}
+      <AnimatePresence>
+        {previewBookmark && (
+          <AnnotationPreviewDrawer
+            bookmark={previewBookmark}
+            onClose={() => setPreviewId(null)}
+            onOpen={(annotationId) => openBookmark(previewBookmark, annotationId)}
+            onOpenAll={() => openBookmark(previewBookmark)}
+          />
+        )}
+      </AnimatePresence>
       {addOpen && <AddBookmarkDialog store={store} setStore={setStore} onClose={() => setAddOpen(false)} notify={notify} />}
       {settingsOpen && <SettingsDialog store={store} onClose={() => setSettingsOpen(false)} notify={notify} />}
       {editingTagsFor && (
@@ -754,22 +774,20 @@ function Sidebar({ store, scope, view, onNavigate, onSettings }: {
   )
 }
 
-function BookmarkCard({ bookmark, menuOpen, expanded, onOpen, onToggleExpanded, onToggleStar, onToggleMenu, onEditTags, onToggleRead, onDelete }: {
+function BookmarkCard({ bookmark, menuOpen, onOpen, onPreview, onToggleStar, onToggleMenu, onEditTags, onToggleRead, onDelete }: {
   bookmark: Bookmark
   menuOpen: boolean
-  expanded: boolean
   onOpen: () => void
-  onToggleExpanded: () => void
+  onPreview: () => void
   onToggleStar: () => void
   onToggleMenu: (event: MouseEvent) => void
   onEditTags: () => void
   onToggleRead: () => void
   onDelete: () => void
 }) {
-  const annotation = bookmark.annotations[0]
   return (
     <motion.article
-      className={`bookmark-card ${expanded ? 'expanded' : ''}`}
+      className={`bookmark-card ${bookmark.annotations.length > 0 ? 'has-annotations' : ''}`}
       layout
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
@@ -798,9 +816,11 @@ function BookmarkCard({ bookmark, menuOpen, expanded, onOpen, onToggleExpanded, 
         {bookmark.progress > 0 && <div className="entry-progress" aria-label={`阅读进度 ${Math.round(bookmark.progress)}%`}><span style={{ width: `${bookmark.progress}%` }} /></div>}
       </div>
       <div className="entry-actions">
-        <button className={`card-action note-toggle ${expanded ? 'active' : ''}`} onClick={onToggleExpanded} title={expanded ? '收起批注预览' : '展开批注预览'} aria-label={expanded ? '收起批注预览' : '展开批注预览'}>
-          <FileText />{bookmark.annotations.length > 0 && <span>{bookmark.annotations.length}</span>}
-        </button>
+        {bookmark.annotations.length > 0 && (
+          <button className="card-annotation-action" onClick={onPreview} aria-label={`查看 ${bookmark.annotations.length} 条批注`}>
+            <FileText />{bookmark.annotations.length} 条批注
+          </button>
+        )}
         <button className={`card-action star ${bookmark.starred ? 'active' : ''}`} onClick={onToggleStar} title={bookmark.starred ? '移出收藏' : '加入收藏'} aria-label={bookmark.starred ? '移出收藏' : '加入收藏'}>
           <Star fill={bookmark.starred ? 'currentColor' : 'none'} />
         </button>
@@ -813,23 +833,84 @@ function BookmarkCard({ bookmark, menuOpen, expanded, onOpen, onToggleExpanded, 
           <button className="danger" onClick={onDelete}><Trash2 />移到回收站</button>
         </div>
       )}
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div className="annotation-preview" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ type: 'spring', stiffness: 360, damping: 34 }}>
-            <div className="preview-rail" />
-            <div className="preview-label"><span>A1</span>页边摘录</div>
-            <blockquote>{annotation?.type === 'highlight' ? annotation.note || '这条高亮还没有笔记。' : annotation?.text || bookmark.description}</blockquote>
-            <p className="preview-note">{annotation?.type === 'highlight' ? '高亮关联笔记' : annotation ? '我的笔记' : '等待第一条笔记'}</p>
-            <button className="button small" onClick={onOpen}>进入阅读</button>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </motion.article>
   )
 }
 
+function AnnotationPreviewDrawer({ bookmark, onClose, onOpen, onOpenAll }: {
+  bookmark: Bookmark
+  onClose: () => void
+  onOpen: (annotationId: string) => void
+  onOpenAll: () => void
+}) {
+  const orderedAnnotations = sortAnnotationsByArticleOrder(bookmark.annotations)
+  const labels = annotationLabelMap(bookmark.annotations)
 
-function AnnotationCard({ annotation, label, onEdit, onDelete, onNoteChange, onToggleUpgrade, focusNote = false, cardRef }: {
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [onClose])
+
+  return (
+    <motion.div className="preview-drawer-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: .16 }}>
+      <button className="preview-drawer-backdrop" onClick={onClose} aria-label="关闭批注速览" />
+      <motion.aside
+        className="preview-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="preview-drawer-title"
+        initial={{ x: 44 }}
+        animate={{ x: 0 }}
+        exit={{ x: 44 }}
+        transition={{ type: 'spring', stiffness: 390, damping: 38 }}
+      >
+        <header className="preview-drawer-header">
+          <div className="preview-drawer-heading">
+            <span className="preview-drawer-kicker"><FileText />批注速览</span>
+            <span>{orderedAnnotations.length} 条</span>
+          </div>
+          <h2 id="preview-drawer-title">{bookmark.title}</h2>
+          <p>{bookmark.domain}</p>
+          <button className="preview-drawer-close" onClick={onClose} aria-label="关闭批注速览" autoFocus><X /></button>
+        </header>
+
+        <div className="preview-drawer-list">
+          {orderedAnnotations.map((annotation) => {
+            const label = labels.get(annotation.id) ?? ''
+            return (
+              <button className={`preview-annotation ${annotation.type} ${annotation.upgraded ? 'upgraded' : ''}`} key={annotation.id} onClick={() => onOpen(annotation.id)}>
+                <span className="preview-annotation-rail" aria-hidden="true" />
+                <span className="preview-annotation-meta">
+                  <strong>{label}</strong>
+                  <time>{formatNoteDate(annotation.createdAt)}</time>
+                  {annotation.upgraded && <em>重点</em>}
+                </span>
+                {annotation.type === 'highlight' ? (
+                  <>
+                    <span className="preview-annotation-quote">{annotation.text}</span>
+                    <span className={`preview-annotation-note ${annotation.note?.trim() ? '' : 'empty'}`}>{annotation.note?.trim() || '尚未添加关联笔记'}</span>
+                  </>
+                ) : <span className="preview-annotation-note">{annotation.text}</span>}
+                <span className="preview-annotation-action">{annotation.type === 'highlight' ? '在原文中查看' : '在阅读页查看'} <ArrowRight /></span>
+              </button>
+            )
+          })}
+        </div>
+
+        <footer className="preview-drawer-footer">
+          <span>按文章位置排列</span>
+          <button className="button primary" onClick={onOpenAll}>打开阅读页</button>
+        </footer>
+      </motion.aside>
+    </motion.div>
+  )
+}
+
+
+function AnnotationCard({ annotation, label, onEdit, onDelete, onNoteChange, onToggleUpgrade, focusNote = false, focused = false, cardRef }: {
   annotation: Annotation
   label: string
   onEdit: () => void
@@ -837,6 +918,7 @@ function AnnotationCard({ annotation, label, onEdit, onDelete, onNoteChange, onT
   onNoteChange: (note: string) => void
   onToggleUpgrade: () => void
   focusNote?: boolean
+  focused?: boolean
   cardRef?: (element: HTMLElement | null) => void
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -866,7 +948,7 @@ function AnnotationCard({ annotation, label, onEdit, onDelete, onNoteChange, onT
   }
 
   return (
-    <motion.article ref={cardRef} data-annotation-id={annotation.id} className={`margin-note ${annotation.type} ${annotation.upgraded ? 'upgraded' : ''} ${celebrating ? 'celebrating' : ''}`} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+    <motion.article ref={cardRef} data-annotation-id={annotation.id} className={`margin-note ${annotation.type} ${annotation.upgraded ? 'upgraded' : ''} ${focused ? 'focused' : ''} ${celebrating ? 'celebrating' : ''}`} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
       <span className="margin-note-link" aria-hidden="true" />
       <header>
         <span className="margin-note-badge">{label}</span>
@@ -893,8 +975,9 @@ function EmptyNotes() {
   return <div className="empty-notes"><FileText /><p>还没有页边笔记</p><span>在网页中拖动选中文字，再点击浮出的“高亮”。</span></div>
 }
 
-function BrowserNotesPanel({ bookmark, onEdit, onDelete, onNoteChange, onToggleUpgrade }: {
+function BrowserNotesPanel({ bookmark, focusedAnnotationId, onEdit, onDelete, onNoteChange, onToggleUpgrade }: {
   bookmark: Bookmark
+  focusedAnnotationId: string | null
   onEdit: (annotation: Annotation) => void
   onDelete: (id: string) => void
   onNoteChange: (id: string, note: string) => void
@@ -903,6 +986,18 @@ function BrowserNotesPanel({ bookmark, onEdit, onDelete, onNoteChange, onToggleU
   const orderedAnnotations = sortAnnotationsByArticleOrder(bookmark.annotations)
   const labels = annotationLabelMap(bookmark.annotations)
   const latestAnnotation = sortAnnotationsByCreatedAt(bookmark.annotations).at(-1)
+
+  useEffect(() => {
+    if (!focusedAnnotationId) return
+    const frame = requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(`[data-annotation-id="${CSS.escape(focusedAnnotationId)}"]`)?.scrollIntoView({
+        block: 'center',
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [bookmark.id, focusedAnnotationId])
+
   return (
     <aside className="notes-panel">
       <div className="annotation-list">
@@ -915,7 +1010,8 @@ function BrowserNotesPanel({ bookmark, onEdit, onDelete, onNoteChange, onToggleU
             onDelete={() => onDelete(annotation.id)}
             onNoteChange={(note) => onNoteChange(annotation.id, note)}
             onToggleUpgrade={() => onToggleUpgrade(annotation.id)}
-            focusNote={annotation.id === latestAnnotation?.id}
+            focusNote={!focusedAnnotationId && annotation.id === latestAnnotation?.id}
+            focused={annotation.id === focusedAnnotationId}
           />
         )) : <EmptyNotes />}
       </div>

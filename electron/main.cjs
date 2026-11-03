@@ -692,6 +692,9 @@ ipcMain.handle('browser:action', async (_event, { action, payload }) => {
   if (action === 'reload') pageView.webContents.reload()
   if (action === 'navigate' && payload) await pageView.webContents.loadURL(normalizeUrl(payload))
   if (action === 'external') await shell.openExternal(pageView.webContents.getURL())
+  if (action === 'focus-highlight' && typeof payload === 'string' && payload) {
+    pageView.webContents.send('page:focus-highlight', payload.slice(0, 100))
+  }
   emitBrowserState()
   return true
 })

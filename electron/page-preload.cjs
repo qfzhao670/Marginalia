@@ -1442,6 +1442,22 @@ window.addEventListener('DOMContentLoaded', () => {
     highlightRanges = resolveHighlightRanges()
     scheduleConnectorRender()
   })
+  ipcRenderer.on('page:focus-highlight', (_event, highlightId) => {
+    const focus = (attempt = 0) => {
+      const range = highlightRanges.get(String(highlightId || ''))
+      const target = range?.startContainer?.parentElement
+      if (!range || !target) {
+        if (attempt < 8) window.setTimeout(() => focus(attempt + 1), 90)
+        return
+      }
+      target.scrollIntoView({
+        block: 'center',
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      })
+      window.setTimeout(scheduleConnectorRender, 260)
+    }
+    focus()
+  })
   ipcRenderer.on('page:connector-targets', (_event, items) => {
     connectorTargets = Array.isArray(items) ? items : []
     scheduleConnectorRender()
