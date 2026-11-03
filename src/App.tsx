@@ -30,8 +30,25 @@ import type { AiConversation, Annotation, AppStore, Bookmark, BrowserPageScrollP
 type LibraryScope = { type: 'all' } | { type: 'starred' } | { type: 'tag'; tag: string }
 type ToastState = { message: string; tone?: 'default' | 'danger' }
 
-const EMPTY_STORE: AppStore = { bookmarks: [], tags: [] }
+const EMPTY_STORE: AppStore = { bookmarks: [] }
 const EMPTY_BROWSER: BrowserState = { url: '', title: '', canGoBack: false, canGoForward: false, loading: false }
+
+const normalizeTags = (tags: string[]) => [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))]
+
+const bookmarkTagCounts = (bookmarks: Bookmark[]) => {
+  const counts = new Map<string, number>()
+  bookmarks.forEach((bookmark) => {
+    normalizeTags(bookmark.tags).forEach((tag) => {
+      counts.set(tag, (counts.get(tag) ?? 0) + 1)
+    })
+  })
+  return [...counts].map(([name, count]) => ({ name, count }))
+}
+
+const mergeTags = (current: string[], input: string) => {
+  const additions = input.split(/[,，\n]+/).map((tag) => tag.trim()).filter(Boolean)
+  return normalizeTags([...current, ...additions])
+}
 
 const formatDate = (iso: string) => new Intl.DateTimeFormat('zh-CN', {
   year: 'numeric', month: '2-digit', day: '2-digit',
@@ -134,7 +151,6 @@ function App() {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<'recent' | 'oldest' | 'title'>('recent')
   const [addOpen, setAddOpen] = useState(false)
-  const [tagManagerOpen, setTagManagerOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [editingTagsFor, setEditingTagsFor] = useState<string | null>(null)
   const [cardMenu, setCardMenu] = useState<string | null>(null)
@@ -152,6 +168,12 @@ function App() {
     [store.bookmarks, currentId],
   )
 
+  useEffect(() => {
+    if (scope.type !== 'tag') return
+    if (store.bookmarks.some((bookmark) => bookmark.tags.includes(scope.tag))) return
+    setScope({ type: 'all' })
+  }, [store.bookmarks, scope])
+
   const notify = useCallback((message: string, tone: ToastState['tone'] = 'default') => {
     setToast({ message, tone })
     window.setTimeout(() => setToast(null), 2600)
@@ -159,7 +181,12 @@ function App() {
 
   useEffect(() => {
     window.marginalia.store.get().then((saved) => {
-      setStore(saved)
+      setStore({
+        bookmarks: saved.bookmarks.map((bookmark) => ({
+          ...bookmark,
+          tags: normalizeTags(Array.isArray(bookmark.tags) ? bookmark.tags : []),
+        })),
+      })
       hydrated.current = true
       setReady(true)
     }).catch(() => {
@@ -496,7 +523,6 @@ function App() {
         scope={scope}
         view={view}
         onNavigate={goLibrary}
-        onManageTags={() => setTagManagerOpen(true)}
         onSettings={() => setSettingsOpen(true)}
       />
 
@@ -594,12 +620,11 @@ function App() {
 
       {query && <SearchDialog query={query.trim()} setQuery={setQuery} bookmarks={store.bookmarks} onOpen={openBookmark} />}
       {addOpen && <AddBookmarkDialog store={store} setStore={setStore} onClose={() => setAddOpen(false)} notify={notify} />}
-      {tagManagerOpen && <TagManager store={store} setStore={setStore} onClose={() => setTagManagerOpen(false)} notify={notify} />}
       {settingsOpen && <SettingsDialog store={store} onClose={() => setSettingsOpen(false)} notify={notify} />}
       {editingTagsFor && (
         <EditTagsDialog
           bookmark={store.bookmarks.find((item) => item.id === editingTagsFor)!}
-          tags={store.tags}
+          suggestions={bookmarkTagCounts(store.bookmarks).map((tag) => tag.name)}
           onSave={(tags) => {
             updateBookmark(editingTagsFor, { tags })
             setEditingTagsFor(null)
@@ -613,14 +638,15 @@ function App() {
   )
 }
 
-function Sidebar({ store, scope, view, onNavigate, onManageTags, onSettings }: {
+function Sidebar({ store, scope, view, onNavigate, onSettings }: {
   store: AppStore
   scope: LibraryScope
   view: 'library' | 'reader'
   onNavigate: (scope: LibraryScope) => void
-  onManageTags: () => void
   onSettings: () => void
 }) {
+  const usedTags = useMemo(() => bookmarkTagCounts(store.bookmarks), [store.bookmarks])
+
   return (
     <aside className="sidebar">
       <div className="brand"><span className="brand-mark">M</span><span>Marginalia</span></div>
@@ -635,12 +661,11 @@ function Sidebar({ store, scope, view, onNavigate, onManageTags, onSettings }: {
       <div className="sidebar-divider" />
       <div className="tag-nav">
         <div className="sidebar-label">标签</div>
-        {store.tags.map((tagName) => (
-          <button key={tagName} className={view === 'library' && scope.type === 'tag' && scope.tag === tagName ? 'active' : ''} onClick={() => onNavigate({ type: 'tag', tag: tagName })}>
-            <Tag /><span>{tagName}</span><em>{store.bookmarks.filter((bookmark) => bookmark.tags.includes(tagName)).length}</em>
+        {usedTags.map((tag) => (
+          <button key={tag.name} className={view === 'library' && scope.type === 'tag' && scope.tag === tag.name ? 'active' : ''} onClick={() => onNavigate({ type: 'tag', tag: tag.name })}>
+            <Tag /><span>{tag.name}</span><em>{tag.count}</em>
           </button>
         ))}
-        <button className="new-tag" onClick={onManageTags}><Plus /><span>新建标签</span></button>
       </div>
       <button className="settings-button" onClick={onSettings}><Settings /><span>设置</span></button>
     </aside>
@@ -884,8 +909,7 @@ function AddBookmarkDialog({ store, setStore, onClose, notify }: {
   const [error, setError] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [offline, setOffline] = useState(false)
-  const [newTag, setNewTag] = useState('')
-  const [showNewTag, setShowNewTag] = useState(false)
+  const tagSuggestions = useMemo(() => bookmarkTagCounts(store.bookmarks).map((tag) => tag.name), [store.bookmarks])
 
   const loadPreview = useCallback(async (value: string) => {
     if (!value.trim()) return
@@ -906,15 +930,6 @@ function AddBookmarkDialog({ store, setStore, onClose, notify }: {
     const timer = window.setTimeout(() => loadPreview(url), 700)
     return () => window.clearTimeout(timer)
   }, [url, loadPreview])
-
-  const createTag = () => {
-    const value = newTag.trim()
-    if (!value) return
-    setStore((previous) => ({ ...previous, tags: previous.tags.includes(value) ? previous.tags : [...previous.tags, value] }))
-    setSelectedTags((previous) => previous.includes(value) ? previous : [...previous, value])
-    setNewTag('')
-    setShowNewTag(false)
-  }
 
   const save = async (event: FormEvent) => {
     event.preventDefault()
@@ -969,16 +984,7 @@ function AddBookmarkDialog({ store, setStore, onClose, notify }: {
           </div>
         )}
         <div className="field-label">标签</div>
-        <div className="tag-picker">
-          {store.tags.map((tagName) => (
-            <button type="button" key={tagName} className={selectedTags.includes(tagName) ? 'selected' : ''} onClick={() => setSelectedTags((previous) => previous.includes(tagName) ? previous.filter((tag) => tag !== tagName) : [...previous, tagName])}>
-              {selectedTags.includes(tagName) && <Check />} {tagName}
-            </button>
-          ))}
-          {!showNewTag ? <button type="button" className="new" onClick={() => setShowNewTag(true)}><Plus />新建标签</button> : (
-            <div className="inline-new-tag"><input autoFocus value={newTag} onChange={(event) => setNewTag(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && (event.preventDefault(), createTag())} /><button type="button" onClick={createTag}>添加</button></div>
-          )}
-        </div>
+        <TagEditor value={selectedTags} suggestions={tagSuggestions} onChange={setSelectedTags} />
         <label className="toggle-row">
           <input type="checkbox" checked={offline} onChange={(event) => setOffline(event.target.checked)} />
           <span className="toggle" />
@@ -990,69 +996,64 @@ function AddBookmarkDialog({ store, setStore, onClose, notify }: {
   )
 }
 
-function EditTagsDialog({ bookmark, tags, onSave, onClose }: { bookmark: Bookmark; tags: string[]; onSave: (tags: string[]) => void; onClose: () => void }) {
+function TagEditor({ value, suggestions, onChange, className = '' }: {
+  value: string[]
+  suggestions: string[]
+  onChange: (tags: string[]) => void
+  className?: string
+}) {
+  const [draft, setDraft] = useState('')
+  const available = suggestions.filter((tag) => !value.includes(tag))
+  const commitDraft = () => {
+    if (!draft.trim()) return
+    onChange(mergeTags(value, draft))
+    setDraft('')
+  }
+
+  return (
+    <div className={`tag-editor ${className}`}>
+      <div className="tag-entry">
+        {value.map((tag) => (
+          <button type="button" className="tag-chip" key={tag} onClick={() => onChange(value.filter((item) => item !== tag))} title={`移除标签 ${tag}`}>
+            <span>{tag}</span><X />
+          </button>
+        ))}
+        <input
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commitDraft}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return
+            if (event.key === 'Enter' || event.key === ',' || event.key === '，') {
+              event.preventDefault()
+              commitDraft()
+            } else if (event.key === 'Backspace' && !draft && value.length) {
+              onChange(value.slice(0, -1))
+            }
+          }}
+          placeholder={value.length ? '继续输入标签…' : '输入任意标签，按 Enter 添加'}
+          aria-label="输入标签"
+        />
+      </div>
+      {available.length > 0 && (
+        <div className="tag-suggestions">
+          <span>已有标签</span>
+          {available.map((tag) => <button type="button" key={tag} onMouseDown={(event) => event.preventDefault()} onClick={() => onChange([...value, tag])}>{tag}</button>)}
+        </div>
+      )}
+      <p>按 Enter 添加，也可以用逗号分隔多个标签</p>
+    </div>
+  )
+}
+
+function EditTagsDialog({ bookmark, suggestions, onSave, onClose }: { bookmark: Bookmark; suggestions: string[]; onSave: (tags: string[]) => void; onClose: () => void }) {
   const [selected, setSelected] = useState(bookmark.tags)
   return (
     <Modal className="compact-modal">
       <div className="modal-title-row"><h2>编辑标签</h2><button className="icon-button" onClick={onClose}><X /></button></div>
       <p className="modal-subtitle">{bookmark.title}</p>
-      <div className="tag-picker large">{tags.map((tagName) => <button key={tagName} className={selected.includes(tagName) ? 'selected' : ''} onClick={() => setSelected((previous) => previous.includes(tagName) ? previous.filter((item) => item !== tagName) : [...previous, tagName])}>{selected.includes(tagName) && <Check />}{tagName}</button>)}</div>
+      <TagEditor className="large" value={selected} suggestions={suggestions} onChange={setSelected} />
       <div className="modal-actions"><button className="button" onClick={onClose}>取消</button><button className="button primary" onClick={() => onSave(selected)}>保存更改</button></div>
-    </Modal>
-  )
-}
-
-function TagManager({ store, setStore, onClose, notify }: { store: AppStore; setStore: React.Dispatch<React.SetStateAction<AppStore>>; onClose: () => void; notify: (message: string, tone?: ToastState['tone']) => void }) {
-  const [selected, setSelected] = useState(store.tags[0] || '')
-  const [name, setName] = useState(selected)
-  const [filter, setFilter] = useState('')
-  const [newTag, setNewTag] = useState('')
-  const choose = (tagName: string) => { setSelected(tagName); setName(tagName) }
-  const create = () => {
-    const value = newTag.trim()
-    if (!value || store.tags.includes(value)) return
-    setStore((previous) => ({ ...previous, tags: [...previous.tags, value] }))
-    setNewTag(''); choose(value); notify('标签已创建')
-  }
-  const rename = () => {
-    const value = name.trim()
-    if (!selected || !value || (value !== selected && store.tags.includes(value))) return
-    setStore((previous) => ({
-      tags: previous.tags.map((tagName) => tagName === selected ? value : tagName),
-      bookmarks: previous.bookmarks.map((bookmark) => ({ ...bookmark, tags: bookmark.tags.map((tagName) => tagName === selected ? value : tagName) })),
-    }))
-    setSelected(value); notify('标签已更新')
-  }
-  const remove = () => {
-    if (!selected || !window.confirm(`删除标签“${selected}”？网页不会被删除。`)) return
-    setStore((previous) => ({
-      tags: previous.tags.filter((tagName) => tagName !== selected),
-      bookmarks: previous.bookmarks.map((bookmark) => ({ ...bookmark, tags: bookmark.tags.filter((tagName) => tagName !== selected) })),
-    }))
-    const next = store.tags.find((tagName) => tagName !== selected) || ''
-    choose(next); notify('标签已删除')
-  }
-  const related = store.bookmarks.filter((bookmark) => bookmark.tags.includes(selected))
-  return (
-    <Modal className="tag-manager-modal">
-      <div className="modal-title-row"><h2>标签管理</h2><button className="icon-button" onClick={onClose} title="关闭标签管理"><X /></button></div>
-      <div className="tag-manager-body">
-        <div className="tag-manager-list">
-          <div className="mini-search"><Search /><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="搜索标签…" /></div>
-          {store.tags.filter((tagName) => tagName.includes(filter)).map((tagName) => <button key={tagName} className={selected === tagName ? 'active' : ''} onClick={() => choose(tagName)}><Tag /><span>{tagName}</span><em>{store.bookmarks.filter((bookmark) => bookmark.tags.includes(tagName)).length}</em></button>)}
-          <div className="create-tag-row"><input value={newTag} onChange={(event) => setNewTag(event.target.value)} placeholder="新标签名称" onKeyDown={(event) => event.key === 'Enter' && create()} /><button onClick={create}><Plus /></button></div>
-        </div>
-        <div className="tag-manager-detail">
-          {selected ? <>
-            <label className="field-label">标签名称</label>
-            <input className="text-field" value={name} onChange={(event) => setName(event.target.value)} />
-            <h3>相关网页 <span>({related.length})</span></h3>
-            <div className="related-pages">{related.map((bookmark) => <div key={bookmark.id}><div>{bookmark.image ? <img src={bookmark.image} alt="" /> : <Globe2 />}</div><span><strong>{bookmark.title}</strong><small>{bookmark.domain}</small></span></div>)}</div>
-            <div className="tag-manager-actions"><button className="button primary" onClick={rename}>保存更改</button><button className="button danger" onClick={remove}><Trash2 />删除标签</button></div>
-            <p className="danger-help">删除标签不会删除网页</p>
-          </> : <div className="search-empty">新建一个标签开始整理网页</div>}
-        </div>
-      </div>
     </Modal>
   )
 }
@@ -1062,6 +1063,7 @@ function SettingsDialog({ store, onClose, notify }: { store: AppStore; onClose: 
   const [apiKey, setApiKey] = useState('')
   const [apiKeyVisible, setApiKeyVisible] = useState(false)
   const [savingAi, setSavingAi] = useState(false)
+  const tagCount = useMemo(() => bookmarkTagCounts(store.bookmarks).length, [store.bookmarks])
 
   useEffect(() => {
     window.marginalia.ai.getConfig().then(setAiConfig).catch(() => notify('无法读取 AI 配置', 'danger'))
@@ -1143,7 +1145,7 @@ function SettingsDialog({ store, onClose, notify }: { store: AppStore; onClose: 
           <button className="button primary ai-save-button" disabled={savingAi || !aiConfig.baseUrl || !aiConfig.model}>{savingAi ? <LoaderCircle className="spin" /> : null}{savingAi ? '保存中' : '保存 AI 配置'}</button>
         </form>
       </section>
-      <section className="settings-section"><h3>本地资料库</h3><p>收藏、标签、阅读进度和笔记都保存在这台电脑上。</p><div className="storage-stat"><span>{store.bookmarks.length}</span> 个网页 <i /> <span>{store.tags.length}</span> 个标签</div></section>
+      <section className="settings-section"><h3>本地资料库</h3><p>收藏、标签、阅读进度和笔记都保存在这台电脑上。</p><div className="storage-stat"><span>{store.bookmarks.length}</span> 个网页 <i /> <span>{tagCount}</span> 个标签</div></section>
       <section className="settings-section"><h3>数据备份</h3><p>导出 JSON 文件，可以保存你的收藏和全部笔记。</p><button className="button" onClick={exportData}><Download />导出数据</button></section>
     </Modal>
   )

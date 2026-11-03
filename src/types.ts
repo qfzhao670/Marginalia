@@ -75,7 +75,6 @@ export type Bookmark = {
 
 export type AppStore = {
   bookmarks: Bookmark[]
-  tags: string[]
 }
 
 export type PageMetadata = {

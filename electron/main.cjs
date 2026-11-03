@@ -19,7 +19,6 @@ const DEFAULT_AI_CONFIG = {
 }
 
 const DEFAULT_STORE = {
-  tags: ['设计', '技术', '阅读'],
   bookmarks: [
     {
       id: 'welcome-1',
