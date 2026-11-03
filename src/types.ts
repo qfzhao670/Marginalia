@@ -16,6 +16,11 @@ export type BrowserHighlightPayload = {
   anchor?: string
 }
 
+export type BrowserPageScrollPayload = {
+  highlightId: string
+  occurredAt: number
+}
+
 export type BrowserConnectorTarget = {
   id: string
   label: string

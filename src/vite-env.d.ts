@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { AiConfig, AiConversation, AppStore, BrowserConnectorTarget, BrowserHighlightPayload, BrowserState, PageMetadata, ViewBounds } from './types'
+import type { AiConfig, AiConversation, AppStore, BrowserConnectorTarget, BrowserHighlightPayload, BrowserPageScrollPayload, BrowserState, PageMetadata, ViewBounds } from './types'
 
 declare global {
   interface Window {
@@ -23,6 +23,7 @@ declare global {
         onState: (callback: (state: BrowserState) => void) => () => void
         onProgress: (callback: (progress: number) => void) => () => void
         onHighlight: (callback: (highlight: BrowserHighlightPayload) => void) => () => void
+        onPageScroll: (callback: (scroll: BrowserPageScrollPayload) => void) => () => void
         onAiConversationsChange: (callback: (conversations: AiConversation[]) => void) => () => void
         onAiReady: (callback: () => void) => () => void
       }

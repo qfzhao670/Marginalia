@@ -405,6 +405,9 @@ window.addEventListener('DOMContentLoaded', () => {
   let connectorTargets = []
   let highlightRanges = new Map()
   let connectorFrame = 0
+  let pageScrollFrame = 0
+  let pageScrollOccurredAt = 0
+  let lastPageInteractionAt = 0
   let aiConversations = []
   let activeConversationId = ''
   let aiMessages = []
@@ -1382,6 +1385,58 @@ window.addEventListener('DOMContentLoaded', () => {
     connectorFrame = requestAnimationFrame(renderConnectors)
   }
 
+  const visibleHighlight = () => {
+    const viewportHeight = Math.max(1, window.innerHeight)
+    const viewportCenter = viewportHeight / 2
+    let closest = null
+    for (const [id, range] of highlightRanges) {
+      const visibleRects = Array.from(range.getClientRects())
+        .filter((rect) => rect.width > 0 && rect.height > 0 && rect.bottom >= 0 && rect.top <= viewportHeight)
+      for (const rect of visibleRects) {
+        const centerY = Math.max(0, Math.min(viewportHeight, rect.top + rect.height / 2))
+        const distance = Math.abs(centerY - viewportCenter)
+        if (!closest || distance < closest.distance) closest = { id, distance }
+      }
+    }
+    return closest ? {
+      id: closest.id,
+    } : null
+  }
+
+  const emitPageScroll = () => {
+    pageScrollFrame = 0
+    if (pageScrollOccurredAt < lastPageInteractionAt || pageScrollOccurredAt - lastPageInteractionAt > 1500) {
+      return
+    }
+    const highlight = visibleHighlight()
+    if (!highlight) return
+    ipcRenderer.send('page:scroll', {
+      highlightId: highlight.id,
+      occurredAt: pageScrollOccurredAt,
+    })
+  }
+
+  const schedulePageScroll = () => {
+    pageScrollOccurredAt = Date.now()
+    if (pageScrollFrame) cancelAnimationFrame(pageScrollFrame)
+    pageScrollFrame = requestAnimationFrame(emitPageScroll)
+  }
+
+  const markPageInteraction = () => {
+    lastPageInteractionAt = Date.now()
+  }
+
+  window.addEventListener('wheel', markPageInteraction, { capture: true, passive: true })
+  window.addEventListener('touchstart', markPageInteraction, { capture: true, passive: true })
+  window.addEventListener('touchmove', markPageInteraction, { capture: true, passive: true })
+  window.addEventListener('pointerdown', markPageInteraction, { capture: true, passive: true })
+  window.addEventListener('pointermove', (event) => {
+    if (event.buttons) markPageInteraction()
+  }, { capture: true, passive: true })
+  window.addEventListener('keydown', (event) => {
+    if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) markPageInteraction()
+  }, true)
+
   ipcRenderer.on('page:highlights', (_event, items) => {
     highlightItems = Array.isArray(items) ? items : []
     highlightRanges = resolveHighlightRanges()
@@ -1488,6 +1543,7 @@ window.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('scroll', () => {
     hide()
     scheduleConnectorRender()
+    schedulePageScroll()
   }, true)
   window.addEventListener('resize', () => {
     hide()

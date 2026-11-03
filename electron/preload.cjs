@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('marginalia', {
     onState: (callback) => subscribe('browser:state', callback),
     onProgress: (callback) => subscribe('browser:progress', callback),
     onHighlight: (callback) => subscribe('browser:highlight', callback),
+    onPageScroll: (callback) => subscribe('browser:page-scroll', callback),
     onAiConversationsChange: (callback) => subscribe('browser:ai-conversations-change', callback),
     onAiReady: (callback) => subscribe('browser:ai-ready', callback),
   },

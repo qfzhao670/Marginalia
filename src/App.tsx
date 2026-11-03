@@ -25,7 +25,7 @@ import {
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { FormEvent, MouseEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { AiConversation, Annotation, AppStore, Bookmark, BrowserState, PageMetadata, ReadStatus } from './types'
+import type { AiConversation, Annotation, AppStore, Bookmark, BrowserPageScrollPayload, BrowserState, PageMetadata, ReadStatus } from './types'
 
 type LibraryScope = { type: 'all' } | { type: 'starred' } | { type: 'tag'; tag: string }
 type ToastState = { message: string; tone?: 'default' | 'danger' }
@@ -314,6 +314,93 @@ function App() {
       observer.disconnect()
       list?.removeEventListener('scroll', schedule)
       window.removeEventListener('resize', schedule)
+    }
+  }, [view, current?.id, current?.annotations, notesOpen])
+
+  useEffect(() => {
+    if (view !== 'reader' || !current || !notesOpen) return
+    const list = document.querySelector<HTMLElement>('.annotation-list')
+    if (!list) return
+
+    let frame = 0
+    let scrollAnimationFrame = 0
+    let latestScroll: BrowserPageScrollPayload | undefined
+    let lastNotesInteractionAt = 0
+    let lastFollowedHighlightId = ''
+
+    const markNotesInteraction = () => {
+      lastNotesInteractionAt = Date.now()
+      lastFollowedHighlightId = ''
+      if (scrollAnimationFrame) cancelAnimationFrame(scrollAnimationFrame)
+      scrollAnimationFrame = 0
+    }
+    const markKeyboardScroll = (event: KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) markNotesInteraction()
+    }
+    const followPage = () => {
+      frame = 0
+      const scroll = latestScroll
+      if (!scroll || scroll.occurredAt <= lastNotesInteractionAt) return
+
+      const card = document.querySelector<HTMLElement>(`[data-annotation-id="${CSS.escape(scroll.highlightId)}"]`)
+      if (!card) return
+
+      const listRect = list.getBoundingClientRect()
+      const cardRect = card.getBoundingClientRect()
+      const isFullyVisible = cardRect.top >= listRect.top && cardRect.bottom <= listRect.bottom
+      if (isFullyVisible || lastFollowedHighlightId === scroll.highlightId) {
+        lastFollowedHighlightId = scroll.highlightId
+        return
+      }
+
+      const maximum = Math.max(0, list.scrollHeight - list.clientHeight)
+      let targetTop = list.scrollTop
+      if (cardRect.height > listRect.height || cardRect.top < listRect.top) {
+        targetTop += cardRect.top - listRect.top
+      } else if (cardRect.bottom > listRect.bottom) {
+        targetTop += cardRect.bottom - listRect.bottom
+      }
+      targetTop = Math.max(0, Math.min(maximum, targetTop))
+      lastFollowedHighlightId = scroll.highlightId
+
+      if (scrollAnimationFrame) cancelAnimationFrame(scrollAnimationFrame)
+      const startTop = list.scrollTop
+      const distance = targetTop - startTop
+      if (Math.abs(distance) < 1) return
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        list.scrollTop = targetTop
+        return
+      }
+
+      const startedAt = performance.now()
+      const duration = Math.max(240, Math.min(520, 220 + Math.abs(distance) * .18))
+      const animateScroll = (now: number) => {
+        const progress = Math.min(1, (now - startedAt) / duration)
+        const eased = 1 - Math.pow(1 - progress, 3)
+        list.scrollTop = startTop + distance * eased
+        if (progress < 1) scrollAnimationFrame = requestAnimationFrame(animateScroll)
+        else scrollAnimationFrame = 0
+      }
+      scrollAnimationFrame = requestAnimationFrame(animateScroll)
+    }
+    const unsubscribe = window.marginalia.browser.onPageScroll((scroll) => {
+      latestScroll = scroll
+      if (frame) cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(followPage)
+    })
+
+    list.addEventListener('wheel', markNotesInteraction, { passive: true })
+    list.addEventListener('pointerdown', markNotesInteraction, { passive: true })
+    list.addEventListener('touchstart', markNotesInteraction, { passive: true })
+    list.addEventListener('keydown', markKeyboardScroll)
+    return () => {
+      if (frame) cancelAnimationFrame(frame)
+      if (scrollAnimationFrame) cancelAnimationFrame(scrollAnimationFrame)
+      unsubscribe()
+      list.removeEventListener('wheel', markNotesInteraction)
+      list.removeEventListener('pointerdown', markNotesInteraction)
+      list.removeEventListener('touchstart', markNotesInteraction)
+      list.removeEventListener('keydown', markKeyboardScroll)
     }
   }, [view, current?.id, current?.annotations, notesOpen])
 

@@ -636,6 +636,17 @@ ipcMain.on('page:save-highlight', async (event, payload) => {
   mainWindow.webContents.send('browser:highlight', { text, anchor })
 })
 
+ipcMain.on('page:scroll', (event, payload = {}) => {
+  if (!pageView || event.sender !== pageView.webContents || !mainWindow) return
+  const highlightId = typeof payload.highlightId === 'string' ? payload.highlightId.slice(0, 100) : ''
+  if (!highlightId) return
+  const occurredAt = Number(payload.occurredAt)
+  mainWindow.webContents.send('browser:page-scroll', {
+    highlightId,
+    occurredAt: Number.isFinite(occurredAt) ? occurredAt : Date.now(),
+  })
+})
+
 ipcMain.on('page:ai-stream', async (event, payload = {}) => {
   if (!pageView || event.sender !== pageView.webContents) return
   const requestId = String(payload.requestId || '').slice(0, 100)
