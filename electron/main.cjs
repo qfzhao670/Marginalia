@@ -604,6 +604,7 @@ ipcMain.handle('browser:connectors', (event, items) => {
     id: String(item?.id || '').slice(0, 100),
     label: String(item?.label || '').slice(0, 8),
     targetY: Number.isFinite(item?.targetY) ? item.targetY : 0,
+    upgraded: Boolean(item?.upgraded),
   })).filter(({ id, label }) => id && label) : []
   sendConnectorTargets(targets)
   return true

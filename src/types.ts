@@ -7,6 +7,7 @@ export type Annotation = {
   note?: string
   anchor?: string
   color?: 'clay' | 'gold'
+  upgraded?: boolean
   createdAt: string
 }
 
@@ -19,6 +20,7 @@ export type BrowserConnectorTarget = {
   id: string
   label: string
   targetY: number
+  upgraded?: boolean
 }
 
 export type AiMessage = {

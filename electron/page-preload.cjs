@@ -26,6 +26,10 @@ window.addEventListener('DOMContentLoaded', () => {
       dominant-baseline: central;
       -webkit-font-smoothing: antialiased;
     }
+    g[data-upgraded="true"] path { stroke: #b52a35; }
+    g[data-upgraded="true"] circle { fill: #b52a35; }
+    g[data-upgraded="true"] rect { fill: #b52a35; stroke: #b52a35; filter: drop-shadow(0 2px 5px rgba(120,25,34,.16)); }
+    g[data-upgraded="true"] text { fill: #fff; }
   `
   const connectorSvg = document.createElementNS(svgNamespace, 'svg')
   connectorSvg.setAttribute('aria-hidden', 'true')
@@ -1356,7 +1360,10 @@ window.addEventListener('DOMContentLoaded', () => {
       }
       const pathStart = badgeX + 34
       const bendX = Math.max(pathStart + 14, width - 42)
-      const group = svgElement('g', { 'data-highlight-id': item.id })
+      const group = svgElement('g', {
+        'data-highlight-id': item.id,
+        'data-upgraded': target.upgraded ? 'true' : 'false',
+      })
       const path = svgElement('path', {
         d: `M ${pathStart} ${sourceY} H ${bendX} C ${width - 13} ${sourceY}, ${width - 29} ${targetY}, ${width + 1} ${targetY}`,
       })

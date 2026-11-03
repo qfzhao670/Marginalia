@@ -1,6 +1,8 @@
 import {
+  ArrowDown,
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
   Check,
   ChevronDown,
   ClipboardPaste,
@@ -277,7 +279,12 @@ function App() {
         const rect = badge.getBoundingClientRect()
         const centerY = rect.top + rect.height / 2
         if (listRect && (centerY < listRect.top || centerY > listRect.bottom)) return []
-        return [{ id: annotation.id, label: labels.get(annotation.id) ?? '', targetY: centerY - viewportRect.top }]
+        return [{
+          id: annotation.id,
+          label: labels.get(annotation.id) ?? '',
+          targetY: centerY - viewportRect.top,
+          upgraded: Boolean(annotation.upgraded),
+        }]
       })
       window.marginalia.browser.connectors(targets)
     }
@@ -382,6 +389,15 @@ function App() {
     updateBookmark(current.id, { annotations: current.annotations.filter((item) => item.id !== id) })
   }
 
+  const toggleAnnotationUpgrade = (id: string) => {
+    if (!current) return
+    const upgraded = !current.annotations.find((item) => item.id === id)?.upgraded
+    updateBookmark(current.id, {
+      annotations: current.annotations.map((item) => item.id === id ? { ...item, upgraded } : item),
+    })
+    notify(upgraded ? '页边笔记已升级' : '页边笔记已降级')
+  }
+
   if (!ready) {
     return <div className="loading-screen"><LoaderCircle className="spin" />正在打开本地资料库</div>
   }
@@ -483,7 +499,7 @@ function App() {
             <div className="browser-viewport" ref={viewportRef} aria-label="内置网页浏览区域">
               <div className="browser-placeholder"><LoaderCircle className="spin" />正在打开 {current.domain}</div>
             </div>
-            {notesOpen && <BrowserNotesPanel bookmark={current} onEdit={updateAnnotation} onDelete={deleteAnnotation} onNoteChange={updateHighlightNote} />}
+            {notesOpen && <BrowserNotesPanel bookmark={current} onEdit={updateAnnotation} onDelete={deleteAnnotation} onNoteChange={updateHighlightNote} onToggleUpgrade={toggleAnnotationUpgrade} />}
           </div>
           <div className="reader-progress"><span style={{ width: `${current.progress}%` }} /></div>
         </main>
@@ -619,16 +635,19 @@ function BookmarkCard({ bookmark, menuOpen, expanded, onOpen, onToggleExpanded, 
 }
 
 
-function AnnotationCard({ annotation, label, onEdit, onDelete, onNoteChange, focusNote = false, cardRef }: {
+function AnnotationCard({ annotation, label, onEdit, onDelete, onNoteChange, onToggleUpgrade, focusNote = false, cardRef }: {
   annotation: Annotation
   label: string
   onEdit: () => void
   onDelete: () => void
   onNoteChange: (note: string) => void
+  onToggleUpgrade: () => void
   focusNote?: boolean
   cardRef?: (element: HTMLElement | null) => void
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const celebrationTimerRef = useRef<number | null>(null)
+  const [celebrating, setCelebrating] = useState(false)
 
   useLayoutEffect(() => {
     if (!textareaRef.current) return
@@ -636,13 +655,32 @@ function AnnotationCard({ annotation, label, onEdit, onDelete, onNoteChange, foc
     textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
   }, [annotation.note])
 
+  useEffect(() => () => {
+    if (celebrationTimerRef.current !== null) window.clearTimeout(celebrationTimerRef.current)
+  }, [])
+
+  const handleToggleUpgrade = () => {
+    if (!annotation.upgraded) {
+      if (celebrationTimerRef.current !== null) window.clearTimeout(celebrationTimerRef.current)
+      setCelebrating(true)
+      celebrationTimerRef.current = window.setTimeout(() => {
+        setCelebrating(false)
+        celebrationTimerRef.current = null
+      }, 460)
+    }
+    onToggleUpgrade()
+  }
+
   return (
-    <motion.article ref={cardRef} data-annotation-id={annotation.id} className={`margin-note ${annotation.type}`} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+    <motion.article ref={cardRef} data-annotation-id={annotation.id} className={`margin-note ${annotation.type} ${annotation.upgraded ? 'upgraded' : ''} ${celebrating ? 'celebrating' : ''}`} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
       <span className="margin-note-link" aria-hidden="true" />
       <header>
         <span className="margin-note-badge">{label}</span>
         <time>{formatNoteDate(annotation.createdAt)}</time>
         <div className="note-actions">
+          <button className="upgrade-note" onClick={handleToggleUpgrade} aria-label={annotation.upgraded ? '降级页边笔记' : '升级页边笔记'} title={annotation.upgraded ? '降级笔记' : '升级笔记'}>
+            {annotation.upgraded ? <ArrowDown /> : <ArrowUp />}
+          </button>
           {annotation.type === 'note' && <button onClick={onEdit} title="编辑笔记"><MoreHorizontal /></button>}
           <button className="delete-note" onClick={onDelete} title="删除笔记"><Trash2 /></button>
         </div>
@@ -661,11 +699,12 @@ function EmptyNotes() {
   return <div className="empty-notes"><FileText /><p>还没有页边笔记</p><span>在网页中拖动选中文字，再点击浮出的“高亮”。</span></div>
 }
 
-function BrowserNotesPanel({ bookmark, onEdit, onDelete, onNoteChange }: {
+function BrowserNotesPanel({ bookmark, onEdit, onDelete, onNoteChange, onToggleUpgrade }: {
   bookmark: Bookmark
   onEdit: (annotation: Annotation) => void
   onDelete: (id: string) => void
   onNoteChange: (id: string, note: string) => void
+  onToggleUpgrade: (id: string) => void
 }) {
   const orderedAnnotations = sortAnnotationsByArticleOrder(bookmark.annotations)
   const labels = annotationLabelMap(bookmark.annotations)
@@ -681,6 +720,7 @@ function BrowserNotesPanel({ bookmark, onEdit, onDelete, onNoteChange }: {
             onEdit={() => onEdit(annotation)}
             onDelete={() => onDelete(annotation.id)}
             onNoteChange={(note) => onNoteChange(annotation.id, note)}
+            onToggleUpgrade={() => onToggleUpgrade(annotation.id)}
             focusNote={annotation.id === latestAnnotation?.id}
           />
         )) : <EmptyNotes />}
