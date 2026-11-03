@@ -294,10 +294,12 @@ window.addEventListener('DOMContentLoaded', () => {
     .thinking { display: inline-flex; gap: 4px; padding: 7px 0; }
     .thinking i { width: 5px; height: 5px; border-radius: 50%; background: #2f5bff; animation: blink 1s infinite ease-in-out; }
     .thinking i:nth-child(2) { animation-delay: .15s; }.thinking i:nth-child(3) { animation-delay: .3s; }
-    .context-banner { display: none; align-items: center; gap: 7px; margin: 0 2px 9px; padding: 8px 10px; border-radius: 9px; color: #656565; background: #f3f3f3; font-size: 10px; }
+    .context-banner { display: none; grid-column: 1 / -1; align-items: flex-start; gap: 9px; min-width: 0; margin: 1px 2px 2px 0; padding: 7px 9px; border-left: 3px solid #9aa9e8; border-radius: 7px; color: #5e6675; background: #f4f6fc; font-size: 10px; line-height: 1.5; }
     .context-banner.visible { display: flex; }
-    .context-banner span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .context-banner button { padding: 0; border: 0; color: #687184; background: transparent; cursor: pointer; }
+    .context-banner span { display: -webkit-box; flex: 1; min-width: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+    .context-banner span::before { content: "引用原文"; display: block; margin-bottom: 2px; color: #34478f; font-weight: 650; }
+    .context-banner button { flex: 0 0 auto; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 4px; color: #687184; background: transparent; cursor: pointer; }
+    .context-banner button:hover { color: #29334a; background: #e6eaf7; }
     .composer-shell { padding: 12px 16px 8px; border-top: 0; background: linear-gradient(to bottom, rgba(255,255,255,.9), #fff 18%); }
     .composer { display: grid; grid-template-columns: minmax(0,1fr) 36px; align-items: end; gap: 8px; min-height: 56px; margin: 0 0 7px; padding: 7px 8px 7px 16px; border: 1px solid #d9d9d9; border-radius: 20px; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.07); transition: border-color 140ms ease, box-shadow 140ms ease; }
     .composer:focus-within { border-color: #b8b8b8; box-shadow: 0 3px 16px rgba(0,0,0,.1); }
@@ -364,8 +366,7 @@ window.addEventListener('DOMContentLoaded', () => {
       </header>
       <div class="thread"></div>
       <div class="composer-shell">
-        <div class="context-banner"><span></span><button type="button" aria-label="移除选中内容">×</button></div>
-        <div class="composer"><textarea rows="1" placeholder="问问这篇文章…" aria-label="向阅读伴航提问"></textarea><button class="send" type="button" aria-label="发送"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg></button></div>
+        <div class="composer"><div class="context-banner"><span></span><button type="button" aria-label="移除引用原文">×</button></div><textarea rows="1" placeholder="问问这篇文章…" aria-label="向阅读伴航提问"></textarea><button class="send" type="button" aria-label="发送"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg></button></div>
         <p class="privacy">回答基于当前网页；重要信息请回到原文核对</p>
       </div>
       <section class="history-view" aria-label="历史对话">
@@ -627,7 +628,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
   const updateContextBanner = () => {
     aiContext.classList.toggle('visible', Boolean(pendingSelection))
-    aiContextText.textContent = pendingSelection ? `已选原文：${pendingSelection}` : ''
+    aiContextText.textContent = pendingSelection ? `“${pendingSelection}”` : ''
+    aiTextarea.placeholder = pendingSelection ? '针对这段原文提问…' : '问问这篇文章…'
   }
 
   const safeLink = (value) => {
@@ -1079,6 +1081,20 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  const quoteSelectionInComposer = (rawSelection) => {
+    const text = String(rawSelection || '').replace(/\s+/g, ' ').trim().slice(0, 5000)
+    if (!text) return
+    setAiOpen(true)
+    if (companion.classList.contains('settings-mode')) leaveWidgetSettings()
+    companion.classList.remove('history-mode')
+    pendingSelection = text
+    updateContextBanner()
+    window.setTimeout(() => {
+      aiTextarea.focus()
+      aiTextarea.setSelectionRange(aiTextarea.value.length, aiTextarea.value.length)
+    }, 0)
+  }
+
   aiPanelTitle.textContent = document.title || location.hostname
   aiOrb.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return
@@ -1223,13 +1239,8 @@ window.addEventListener('DOMContentLoaded', () => {
       })) : []
     renderConversationHistory()
   })
-  ipcRenderer.on('page:ask-selection-direct', (_event, payload) => {
-    const text = String(payload?.text || '').replace(/\s+/g, ' ').trim().slice(0, 5000)
-    if (!text) return
-    pendingSelection = text
-    updateContextBanner()
-    setAiOpen(true)
-    askAi('请解释这段内容：它在这里具体是什么意思？', text)
+  ipcRenderer.on('page:quote-selection', (_event, payload) => {
+    quoteSelectionInComposer(payload?.text)
   })
   ipcRenderer.send('page:ai-ready')
   renderAiThread()
@@ -1439,10 +1450,7 @@ window.addEventListener('DOMContentLoaded', () => {
     event.preventDefault()
     event.stopPropagation()
     if (selectedPayload) {
-      pendingSelection = selectedPayload.text
-      updateContextBanner()
-      setAiOpen(true)
-      askAi('请解释这段内容：它在这里具体是什么意思？', selectedPayload.text)
+      quoteSelectionInComposer(selectedPayload.text)
     }
     window.getSelection()?.removeAllRanges()
     pressingButton = false

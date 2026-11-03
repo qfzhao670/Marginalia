@@ -524,7 +524,7 @@ function ensurePageView() {
       { role: 'copy', label: '复制' },
       {
         label: '询问阅读伴航',
-        click: () => pageView?.webContents.send('page:ask-selection-direct', { text: selection.slice(0, 5000) }),
+        click: () => pageView?.webContents.send('page:quote-selection', { text: selection.slice(0, 5000) }),
       },
     ]).popup({ window: mainWindow })
   })
