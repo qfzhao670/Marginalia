@@ -39,5 +39,6 @@ contextBridge.exposeInMainWorld('marginalia', {
   },
   offline: {
     save: (id, url) => ipcRenderer.invoke('offline:save', { id, url }),
+    remove: (id) => ipcRenderer.invoke('offline:remove', id),
   },
 })

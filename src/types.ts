@@ -73,8 +73,13 @@ export type Bookmark = {
   aiThread?: AiMessage[]
 }
 
+export type TrashedBookmark = Bookmark & {
+  deletedAt: string
+}
+
 export type AppStore = {
   bookmarks: Bookmark[]
+  trash: TrashedBookmark[]
 }
 
 export type PageMetadata = {

@@ -66,6 +66,7 @@ const DEFAULT_STORE = {
       annotations: [],
     },
   ],
+  trash: [],
 }
 
 const dataFile = () => path.join(app.getPath('userData'), 'marginalia-data.json')
@@ -707,6 +708,14 @@ ipcMain.handle('offline:save', async (_event, { id, url }) => {
   } finally {
     hidden.destroy()
   }
+})
+
+ipcMain.handle('offline:remove', async (_event, id) => {
+  const safeId = String(id).replace(/[^a-z0-9_-]/gi, '')
+  if (!safeId) throw new Error('无效的离线网页标识')
+  const directory = path.join(app.getPath('userData'), 'offline', safeId)
+  await fs.rm(directory, { recursive: true, force: true })
+  return { ok: true }
 })
 
 app.whenReady().then(() => {

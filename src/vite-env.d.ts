@@ -37,6 +37,7 @@ declare global {
       }
       offline: {
         save: (id: string, url: string) => Promise<{ path: string }>
+        remove: (id: string) => Promise<{ ok: boolean }>
       }
     }
   }

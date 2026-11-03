@@ -16,6 +16,7 @@ import {
   MoreHorizontal,
   Plus,
   RefreshCw,
+  RotateCcw,
   Search,
   Settings,
   Star,
@@ -25,12 +26,12 @@ import {
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { FormEvent, MouseEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { AiConversation, Annotation, AppStore, Bookmark, BrowserPageScrollPayload, BrowserState, PageMetadata, ReadStatus } from './types'
+import type { AiConversation, Annotation, AppStore, Bookmark, BrowserPageScrollPayload, BrowserState, PageMetadata, ReadStatus, TrashedBookmark } from './types'
 
-type LibraryScope = { type: 'all' } | { type: 'starred' } | { type: 'tag'; tag: string }
+type LibraryScope = { type: 'all' } | { type: 'starred' } | { type: 'trash' } | { type: 'tag'; tag: string }
 type ToastState = { message: string; tone?: 'default' | 'danger' }
 
-const EMPTY_STORE: AppStore = { bookmarks: [] }
+const EMPTY_STORE: AppStore = { bookmarks: [], trash: [] }
 const EMPTY_BROWSER: BrowserState = { url: '', title: '', canGoBack: false, canGoForward: false, loading: false }
 
 const normalizeTags = (tags: string[]) => [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))]
@@ -185,6 +186,11 @@ function App() {
         bookmarks: saved.bookmarks.map((bookmark) => ({
           ...bookmark,
           tags: normalizeTags(Array.isArray(bookmark.tags) ? bookmark.tags : []),
+        })),
+        trash: (Array.isArray(saved.trash) ? saved.trash : []).map((bookmark) => ({
+          ...bookmark,
+          tags: normalizeTags(Array.isArray(bookmark.tags) ? bookmark.tags : []),
+          deletedAt: typeof bookmark.deletedAt === 'string' ? bookmark.deletedAt : new Date().toISOString(),
         })),
       })
       hydrated.current = true
@@ -466,18 +472,75 @@ function App() {
     })
   }, [store.bookmarks, scope, status, sort])
 
-  const scopeTitle = scope.type === 'all' ? '资料库' : scope.type === 'starred' ? '收藏' : scope.tag
+  const trashed = useMemo(() => [...store.trash].sort((a, b) => {
+    if (sort === 'oldest') return +new Date(a.deletedAt) - +new Date(b.deletedAt)
+    if (sort === 'title') return a.title.localeCompare(b.title, 'zh-CN')
+    return +new Date(b.deletedAt) - +new Date(a.deletedAt)
+  }), [store.trash, sort])
+
+  const scopeTitle = scope.type === 'all' ? '资料库' : scope.type === 'starred' ? '收藏' : scope.type === 'trash' ? '回收站' : scope.tag
   const counts = {
     all: store.bookmarks.length,
     unread: store.bookmarks.filter((bookmark) => bookmark.readStatus === 'unread').length,
     read: store.bookmarks.filter((bookmark) => bookmark.readStatus === 'read').length,
   }
 
-  const deleteBookmark = (id: string) => {
-    if (!window.confirm('删除这个网页？相关笔记和高亮也会删除。')) return
-    setStore((previous) => ({ ...previous, bookmarks: previous.bookmarks.filter((bookmark) => bookmark.id !== id) }))
+  const moveBookmarkToTrash = (id: string) => {
+    setStore((previous) => {
+      const bookmark = previous.bookmarks.find((item) => item.id === id)
+      if (!bookmark) return previous
+      return {
+        ...previous,
+        bookmarks: previous.bookmarks.filter((item) => item.id !== id),
+        trash: [{ ...bookmark, deletedAt: new Date().toISOString() }, ...previous.trash],
+      }
+    })
     setCardMenu(null)
-    notify('网页已删除')
+    setExpandedId((expanded) => expanded === id ? null : expanded)
+    notify('已移到回收站')
+  }
+
+  const restoreBookmark = (id: string) => {
+    setStore((previous) => {
+      const trashedBookmark = previous.trash.find((item) => item.id === id)
+      if (!trashedBookmark) return previous
+      const { deletedAt: _deletedAt, ...bookmark } = trashedBookmark
+      return {
+        ...previous,
+        bookmarks: [bookmark, ...previous.bookmarks],
+        trash: previous.trash.filter((item) => item.id !== id),
+      }
+    })
+    notify('网页已恢复到资料库')
+  }
+
+  const permanentlyDeleteBookmark = async (bookmark: TrashedBookmark) => {
+    if (!window.confirm(`彻底删除“${bookmark.title}”？相关笔记和高亮也会一并删除，且无法撤销。`)) return
+    if (bookmark.offlinePath) {
+      try {
+        await window.marginalia.offline.remove(bookmark.id)
+      } catch {
+        notify('离线副本无法删除，网页仍保留在回收站', 'danger')
+        return
+      }
+    }
+    setStore((previous) => ({ ...previous, trash: previous.trash.filter((item) => item.id !== bookmark.id) }))
+    notify('网页已彻底删除', 'danger')
+  }
+
+  const emptyTrash = async () => {
+    if (!store.trash.length) return
+    const trashSnapshot = store.trash
+    if (!window.confirm(`清空回收站中的 ${trashSnapshot.length} 个网页？此操作无法撤销。`)) return
+    try {
+      await Promise.all(trashSnapshot.filter((bookmark) => bookmark.offlinePath).map((bookmark) => window.marginalia.offline.remove(bookmark.id)))
+    } catch {
+      notify('部分离线副本无法删除，回收站未清空', 'danger')
+      return
+    }
+    const deletedIds = new Set(trashSnapshot.map((bookmark) => bookmark.id))
+    setStore((previous) => ({ ...previous, trash: previous.trash.filter((bookmark) => !deletedIds.has(bookmark.id)) }))
+    notify('回收站已清空', 'danger')
   }
 
   const updateAnnotation = (annotation: Annotation) => {
@@ -540,25 +603,41 @@ function App() {
           <section className="library-content">
             <div className="library-heading-row">
               <div>
-                <p className="context-caption">{scope.type === 'tag' ? '标签视图' : '本地收藏与页边笔记'}</p>
+                <p className="context-caption">{scope.type === 'tag' ? '标签视图' : scope.type === 'trash' ? '已删除的网页与页边笔记' : '本地收藏与页边笔记'}</p>
                 <h1>{scopeTitle}</h1>
               </div>
-              <label className="sort-control">
-                <select value={sort} onChange={(event) => setSort(event.target.value as typeof sort)} aria-label="网页排序">
-                  <option value="recent">最近保存</option>
-                  <option value="oldest">最早保存</option>
-                  <option value="title">按标题</option>
-                </select>
-                <ChevronDown size={17} />
-              </label>
+              <div className="library-heading-actions">
+                {scope.type === 'trash' && store.trash.length > 0 && <button className="button trash-empty-button" onClick={emptyTrash}><Trash2 />清空回收站</button>}
+                <label className="sort-control">
+                  <select value={sort} onChange={(event) => setSort(event.target.value as typeof sort)} aria-label="网页排序">
+                    <option value="recent">{scope.type === 'trash' ? '最近删除' : '最近保存'}</option>
+                    <option value="oldest">{scope.type === 'trash' ? '最早删除' : '最早保存'}</option>
+                    <option value="title">按标题</option>
+                  </select>
+                  <ChevronDown size={17} />
+                </label>
+              </div>
             </div>
-            <div className="status-filters" aria-label="阅读状态筛选">
+            {scope.type !== 'trash' && <div className="status-filters" aria-label="阅读状态筛选">
               <button className={status === 'all' ? 'selected' : ''} onClick={() => setStatus('all')}>全部 <span>{counts.all}</span></button>
               <button className={status === 'unread' ? 'selected' : ''} onClick={() => setStatus('unread')}>未读 <span>{counts.unread}</span></button>
               <button className={status === 'read' ? 'selected' : ''} onClick={() => setStatus('read')}>已读 <span>{counts.read}</span></button>
-            </div>
+            </div>}
 
-            {filtered.length ? (
+            {scope.type === 'trash' ? trashed.length ? (
+              <motion.div className="trash-list" layout>
+                <AnimatePresence initial={false} mode="popLayout">
+                  {trashed.map((bookmark) => (
+                    <TrashCard
+                      key={bookmark.id}
+                      bookmark={bookmark}
+                      onRestore={() => restoreBookmark(bookmark.id)}
+                      onDelete={() => permanentlyDeleteBookmark(bookmark)}
+                    />
+                  ))}
+                </AnimatePresence>
+              </motion.div>
+            ) : <EmptyTrash /> : filtered.length ? (
               <motion.div className="bookmark-list" layout>
                 <AnimatePresence initial={false} mode="popLayout">
                 {filtered.map((bookmark) => (
@@ -576,7 +655,7 @@ function App() {
                     }}
                     onEditTags={() => setEditingTagsFor(bookmark.id)}
                     onToggleRead={() => updateBookmark(bookmark.id, { readStatus: bookmark.readStatus === 'read' ? 'unread' : 'read' })}
-                    onDelete={() => deleteBookmark(bookmark.id)}
+                    onDelete={() => moveBookmarkToTrash(bookmark.id)}
                   />
                 ))}
                 </AnimatePresence>
@@ -657,6 +736,9 @@ function Sidebar({ store, scope, view, onNavigate, onSettings }: {
         <button className={view === 'library' && scope.type === 'starred' ? 'active' : ''} onClick={() => onNavigate({ type: 'starred' })}>
           <Star /><span>收藏</span><em>{store.bookmarks.filter((bookmark) => bookmark.starred).length}</em>
         </button>
+        <button className={`trash-nav ${view === 'library' && scope.type === 'trash' ? 'active' : ''}`} onClick={() => onNavigate({ type: 'trash' })}>
+          <Trash2 /><span>回收站</span><em>{store.trash.length}</em>
+        </button>
       </nav>
       <div className="sidebar-divider" />
       <div className="tag-nav">
@@ -728,7 +810,7 @@ function BookmarkCard({ bookmark, menuOpen, expanded, onOpen, onToggleExpanded, 
         <div className="card-menu" onClick={(event) => event.stopPropagation()}>
           <button onClick={onEditTags}><Tag />编辑标签</button>
           <button onClick={onToggleRead}><Check />标记为{bookmark.readStatus === 'read' ? '未读' : '已读'}</button>
-          <button className="danger" onClick={onDelete}><Trash2 />删除</button>
+          <button className="danger" onClick={onDelete}><Trash2 />移到回收站</button>
         </div>
       )}
       <AnimatePresence initial={false}>
@@ -848,6 +930,50 @@ function EmptyLibrary({ onAdd }: { onAdd: () => void }) {
       <h2>这里还没有网页</h2>
       <p>保存一个网址，Marginalia 会自动抓取标题、摘要和正文。</p>
       <button className="button primary" onClick={onAdd}><Plus />添加网页</button>
+    </div>
+  )
+}
+
+function TrashCard({ bookmark, onRestore, onDelete }: {
+  bookmark: TrashedBookmark
+  onRestore: () => void
+  onDelete: () => void
+}) {
+  return (
+    <motion.article
+      className="trash-card"
+      layout
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: .985 }}
+      transition={{ layout: { type: 'spring', stiffness: 380, damping: 36 }, opacity: { duration: .16 } }}
+    >
+      <div className={`trash-card-cover ${bookmark.image ? '' : 'empty'}`}>
+        {bookmark.image ? <img src={bookmark.image} alt="" /> : <span>{bookmark.domain.charAt(0).toUpperCase()}</span>}
+      </div>
+      <div className="trash-card-copy">
+        <div className="trash-card-source"><span>{bookmark.domain}</span><span>删除于 {formatDate(bookmark.deletedAt)}</span></div>
+        <h3>{bookmark.title}</h3>
+        <p>{bookmark.description}</p>
+        <div className="trash-card-meta">
+          <span>{bookmark.tags.length ? bookmark.tags.map((tag) => `# ${tag}`).join('　') : '无标签'}</span>
+          <span>{bookmark.annotations.length} 条页边笔记</span>
+        </div>
+      </div>
+      <div className="trash-card-actions">
+        <button className="button small restore-button" onClick={onRestore}><RotateCcw />恢复</button>
+        <button className="button small permanent-delete-button" onClick={onDelete}><Trash2 />彻底删除</button>
+      </div>
+    </motion.article>
+  )
+}
+
+function EmptyTrash() {
+  return (
+    <div className="empty-library empty-trash">
+      <div><Trash2 /></div>
+      <h2>回收站是空的</h2>
+      <p>从资料库删除的网页会出现在这里，你可以随时恢复。</p>
     </div>
   )
 }
@@ -1145,7 +1271,7 @@ function SettingsDialog({ store, onClose, notify }: { store: AppStore; onClose: 
           <button className="button primary ai-save-button" disabled={savingAi || !aiConfig.baseUrl || !aiConfig.model}>{savingAi ? <LoaderCircle className="spin" /> : null}{savingAi ? '保存中' : '保存 AI 配置'}</button>
         </form>
       </section>
-      <section className="settings-section"><h3>本地资料库</h3><p>收藏、标签、阅读进度和笔记都保存在这台电脑上。</p><div className="storage-stat"><span>{store.bookmarks.length}</span> 个网页 <i /> <span>{tagCount}</span> 个标签</div></section>
+      <section className="settings-section"><h3>本地资料库</h3><p>收藏、标签、阅读进度和笔记都保存在这台电脑上。</p><div className="storage-stat"><span>{store.bookmarks.length}</span> 个网页 <i /> <span>{tagCount}</span> 个标签 <i /> <span>{store.trash.length}</span> 个在回收站</div></section>
       <section className="settings-section"><h3>数据备份</h3><p>导出 JSON 文件，可以保存你的收藏和全部笔记。</p><button className="button" onClick={exportData}><Download />导出数据</button></section>
     </Modal>
   )
