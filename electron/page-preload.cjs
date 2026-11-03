@@ -476,8 +476,6 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   const setAiOpen = (open) => {
-    const wasOpen = companion.classList.contains('open')
-    if (open && !wasOpen) startNewConversation()
     if (open) placePanel()
     if (!open && companion.classList.contains('settings-mode')) leaveWidgetSettings()
     if (!open) companion.classList.remove('history-mode')
@@ -1085,6 +1083,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const quoteSelectionInComposer = (rawSelection) => {
     const text = String(rawSelection || '').replace(/\s+/g, ' ').trim().slice(0, 5000)
     if (!text) return
+    startNewConversation()
     setAiOpen(true)
     if (companion.classList.contains('settings-mode')) leaveWidgetSettings()
     companion.classList.remove('history-mode')
@@ -1238,7 +1237,19 @@ window.addEventListener('DOMContentLoaded', () => {
         ...conversation,
         messages: conversation.messages.filter((message) => message?.role && message?.content),
       })) : []
+    const activeConversation = aiConversations.find((conversation) => conversation.id === activeConversationId)
+    if (activeConversation) {
+      aiMessages = [...activeConversation.messages]
+    } else if (!activeConversationId) {
+      const latestConversation = [...aiConversations].sort((left, right) =>
+        new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())[0]
+      if (latestConversation) {
+        activeConversationId = latestConversation.id
+        aiMessages = [...latestConversation.messages]
+      }
+    }
     renderConversationHistory()
+    renderAiThread()
   })
   ipcRenderer.on('page:quote-selection', (_event, payload) => {
     quoteSelectionInComposer(payload?.text)
