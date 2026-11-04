@@ -49,7 +49,9 @@ jobs:
               release/*.blockmap
               release/latest.yml
           - name: macOS universal
-            os: macos-latest
+            # macos-latest currently targets the capacity-constrained arm64 pool.
+            # Build on Intel explicitly; electron-builder still emits a universal app.
+            os: macos-15-intel
             command: npm run dist:mac
             artifact: marginalia-macos-universal
             files: |
