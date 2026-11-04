@@ -4,6 +4,9 @@ const path = require('node:path')
 const { fileURLToPath, pathToFileURL } = require('node:url')
 
 app.setName('Marginalia')
+app.setAppUserModelId('com.marginalia.app')
+
+const APP_ICON = path.join(__dirname, '..', 'build', 'icon.png')
 
 let mainWindow
 let pageView
@@ -539,6 +542,7 @@ function createWindow() {
     minHeight: 680,
     backgroundColor: '#f7f5ef',
     title: 'Marginalia',
+    icon: APP_ICON,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),

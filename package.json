@@ -53,9 +53,11 @@
     "files": [
       "dist/renderer/**/*",
       "electron/**/*",
+      "build/icon.png",
       "package.json"
     ],
     "mac": {
+      "icon": "build/icon.icns",
       "category": "public.app-category.productivity",
       "target": [
         "dmg",
@@ -64,6 +66,7 @@
       "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -75,6 +78,7 @@
       "artifactName": "${productName}-Setup-${version}-${arch}.${ext}"
     },
     "linux": {
+      "icon": "build/icon.png",
       "target": [
         {
           "target": "AppImage",
