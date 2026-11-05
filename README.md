@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./build/icon.png" width="96" alt="Marginalia 图标" />
+  <img src="./assets/readme/icon.webp" width="96" alt="Marginalia 图标" />
 
 # Marginalia
 
@@ -21,7 +21,7 @@ Marginalia 是一款本地优先的桌面网页资料库。保存一个链接，
 它适合希望把“稍后读”真正变成“读过、想过、留下来”的研究者、创作者和终身学习者。
 
 <p align="center">
-  <img src="./assets/screenshots/library-annotated.png" alt="Marginalia 真实资料库界面：搜索、阅读状态与标签" width="88%" />
+  <img src="./assets/screenshots/library-annotated.webp" alt="Marginalia 真实资料库界面：搜索、阅读状态与标签" width="88%" />
 </p>
 <p align="center"><sub>真实资料库界面：集中收藏、搜索并按标签与阅读状态整理网页</sub></p>
 
@@ -43,12 +43,12 @@ Marginalia 是一款本地优先的桌面网页资料库。保存一个链接，
 5. **重访** — 通过搜索、标签、收藏和批注速览，重新找到重要内容与当时的想法。
 
 <p align="center">
-  <img src="./assets/screenshots/save-page-annotated.png" alt="Marginalia 真实保存网页界面：信息提取、标签与离线副本" width="88%" />
+  <img src="./assets/screenshots/save-page-annotated.webp" alt="Marginalia 真实保存网页界面：信息提取、标签与离线副本" width="88%" />
 </p>
 <p align="center"><sub>保存网页：自动提取信息、组合标签，并按需保留离线副本</sub></p>
 
 <p align="center">
-  <img src="./assets/screenshots/reader-notes-annotated.png" alt="Marginalia 真实阅读界面：原文高亮与页边笔记连接" width="88%" />
+  <img src="./assets/screenshots/reader-notes-annotated.webp" alt="Marginalia 真实阅读界面：原文高亮与页边笔记连接" width="88%" />
 </p>
 <p align="center"><sub>原文阅读与页边笔记：每条想法都能回到它所依据的段落</sub></p>
 
@@ -57,7 +57,7 @@ Marginalia 是一款本地优先的桌面网页资料库。保存一个链接，
 AI 阅读伴航是可选功能，Marginalia 不绑定特定模型或服务商。它可以围绕当前网页总结内容、梳理论证、解释术语，也可以针对你选中的段落继续追问。
 
 <p align="center">
-  <img src="./assets/screenshots/ai-companion-annotated.png" alt="Marginalia 真实 AI 阅读伴航界面" width="88%" />
+  <img src="./assets/screenshots/ai-companion-annotated.webp" alt="Marginalia 真实 AI 阅读伴航界面" width="88%" />
 </p>
 <p align="center"><sub>AI 阅读伴航：依据当前网页回答，保留原文上下文并支持多轮追问</sub></p>
 

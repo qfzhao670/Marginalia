@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./build/icon.png" width="96" alt="Marginalia icon" />
+  <img src="./assets/readme/icon.webp" width="96" alt="Marginalia icon" />
 
 # Marginalia
 
@@ -21,7 +21,7 @@ Marginalia is a local-first desktop library for the web. Save a link and it auto
 It is made for researchers, creators, and lifelong learners who want “read later” to become “read, understood, and remembered.”
 
 <p align="center">
-  <img src="./assets/screenshots/library-annotated.png" alt="The real Marginalia library interface with search, reading status, and tags" width="88%" />
+  <img src="./assets/screenshots/library-annotated.webp" alt="The real Marginalia library interface with search, reading status, and tags" width="88%" />
 </p>
 <p align="center"><sub>The real library interface: collect, search, and organize pages by tags and reading status.</sub></p>
 
@@ -43,12 +43,12 @@ It is made for researchers, creators, and lifelong learners who want “read lat
 5. **Revisit** — Find important sources and ideas again through search, tags, favorites, and annotation previews.
 
 <p align="center">
-  <img src="./assets/screenshots/save-page-annotated.png" alt="The real Marginalia save-page interface with metadata, tags, and offline copies" width="88%" />
+  <img src="./assets/screenshots/save-page-annotated.webp" alt="The real Marginalia save-page interface with metadata, tags, and offline copies" width="88%" />
 </p>
 <p align="center"><sub>Save a page: extract its details, combine tags, and optionally keep an offline copy.</sub></p>
 
 <p align="center">
-  <img src="./assets/screenshots/reader-notes-annotated.png" alt="The real Marginalia reader with highlights connected to margin notes" width="88%" />
+  <img src="./assets/screenshots/reader-notes-annotated.webp" alt="The real Marginalia reader with highlights connected to margin notes" width="88%" />
 </p>
 <p align="center"><sub>Original-page reading and margin notes: every idea stays connected to its source passage.</sub></p>
 
@@ -57,7 +57,7 @@ It is made for researchers, creators, and lifelong learners who want “read lat
 The AI reading companion is optional, and Marginalia does not lock you into a particular model or provider. Use it to summarize the current page, map an argument, explain unfamiliar terms, or continue asking questions about a selected passage.
 
 <p align="center">
-  <img src="./assets/screenshots/ai-companion-annotated.png" alt="The real Marginalia AI reading companion interface" width="88%" />
+  <img src="./assets/screenshots/ai-companion-annotated.webp" alt="The real Marginalia AI reading companion interface" width="88%" />
 </p>
 <p align="center"><sub>AI reading companion: answers from the current page, preserves context, and supports follow-up questions.</sub></p>
 
