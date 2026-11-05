@@ -32,6 +32,8 @@ and its note in the margin.
   annotation preview
 - `05-reader-marginalia-v3.png`: reading canvas with passage-to-margin note
   connectors
+- `06-ai-reading-companion-v3.png`: reading canvas with the AI companion open
+  for page-grounded summaries and follow-up questions
 
 Both screens were generated with the built-in ImageGen tool from the existing
 v2 prototype screens as product-structure references. The prompt direction was:
