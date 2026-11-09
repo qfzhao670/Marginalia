@@ -407,7 +407,6 @@ async function applyPageHighlights(items = activeHighlights) {
       if (!window.CSS?.highlights || typeof window.Highlight === 'undefined') return 0;
       const items = ${JSON.stringify(highlights)};
       const ranges = [];
-      const used = new WeakMap();
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
         acceptNode(node) {
           const parent = node.parentElement;
@@ -418,6 +417,41 @@ async function applyPageHighlights(items = activeHighlights) {
       });
       const nodes = [];
       while (walker.nextNode()) nodes.push(walker.currentNode);
+      const compactText = (value) => String(value || '').replace(/\\s+/g, '');
+      const textUnits = [];
+      const textPositions = [];
+      for (const node of nodes) {
+        for (let offset = 0; offset < node.data.length; offset += 1) {
+          const unit = node.data[offset];
+          if (/\\s/.test(unit)) continue;
+          textUnits.push(unit);
+          textPositions.push({ node, offset });
+        }
+      }
+      const searchableText = textUnits.join('');
+      const usedMatches = [];
+      const findTextRange = (text) => {
+        const needle = compactText(text);
+        if (!needle) return null;
+        let start = searchableText.indexOf(needle);
+        while (start >= 0) {
+          const end = start + needle.length;
+          const overlaps = usedMatches.some(([usedStart, usedEnd]) => start < usedEnd && end > usedStart);
+          if (!overlaps) {
+            const startPosition = textPositions[start];
+            const endPosition = textPositions[end - 1];
+            if (startPosition && endPosition) {
+              const range = document.createRange();
+              range.setStart(startPosition.node, startPosition.offset);
+              range.setEnd(endPosition.node, endPosition.offset + 1);
+              usedMatches.push([start, end]);
+              return range;
+            }
+          }
+          start = searchableText.indexOf(needle, start + 1);
+        }
+        return null;
+      };
       const resolvePath = (path) => {
         let node = document.body;
         for (const index of path || []) {
@@ -436,23 +470,16 @@ async function applyPageHighlights(items = activeHighlights) {
               const range = document.createRange();
               range.setStart(startNode, anchor.startOffset);
               range.setEnd(endNode, anchor.endOffset);
-              if (range.toString().replace(/\\s+/g, ' ').trim() === item.text) {
+              if (compactText(range.toString()) === compactText(item.text)) {
                 ranges.push(range);
                 continue;
               }
             }
           } catch {}
         }
-        for (const node of nodes) {
-          const from = used.get(node) || 0;
-          const start = node.data.indexOf(item.text, from);
-          if (start < 0) continue;
-          const range = document.createRange();
-          range.setStart(node, start);
-          range.setEnd(node, start + item.text.length);
+        const range = findTextRange(item.text);
+        if (range) {
           ranges.push(range);
-          used.set(node, start + item.text.length);
-          break;
         }
       }
       CSS.highlights.delete('marginalia-saved-highlight');
