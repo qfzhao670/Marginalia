@@ -5,6 +5,7 @@ import {
   ArrowUp,
   Check,
   ChevronDown,
+  ChevronRight,
   ClipboardPaste,
   Download,
   Eye,
@@ -30,20 +31,61 @@ import type { AiConversation, Annotation, AppStore, Bookmark, BrowserPageScrollP
 
 type LibraryScope = { type: 'all' } | { type: 'starred' } | { type: 'trash' } | { type: 'tag'; tag: string }
 type ToastState = { message: string; tone?: 'default' | 'danger' }
+type TagTreeNode = { path: string; label: string; count: number; children: TagTreeNode[] }
 
 const EMPTY_STORE: AppStore = { bookmarks: [], trash: [] }
 const EMPTY_BROWSER: BrowserState = { url: '', title: '', canGoBack: false, canGoForward: false, loading: false }
 
-const normalizeTags = (tags: string[]) => [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))]
+const normalizeTagPath = (tag: string) => tag
+  .split(/[/>＞]+/)
+  .map((part) => part.trim())
+  .filter(Boolean)
+  .join('/')
 
-const bookmarkTagCounts = (bookmarks: Bookmark[]) => {
-  const counts = new Map<string, number>()
-  bookmarks.forEach((bookmark) => {
-    normalizeTags(bookmark.tags).forEach((tag) => {
-      counts.set(tag, (counts.get(tag) ?? 0) + 1)
+const normalizeTags = (tags: string[]) => [...new Set(tags.map(normalizeTagPath).filter(Boolean))]
+
+const tagPathParts = (tag: string) => normalizeTagPath(tag).split('/').filter(Boolean)
+const formatTagPath = (tag: string) => tagPathParts(tag).join(' / ')
+const tagIsInBranch = (tag: string, branch: string) => tag === branch || tag.startsWith(`${branch}/`)
+
+const buildTagTree = (entries: Array<{ id: string; tags: string[] }>): TagTreeNode[] => {
+  const nodes = new Map<string, { path: string; label: string; bookmarkIds: Set<string>; childPaths: Set<string> }>()
+
+  entries.forEach((entry) => {
+    normalizeTags(entry.tags).forEach((tag) => {
+      const parts = tagPathParts(tag)
+      parts.forEach((label, index) => {
+        const path = parts.slice(0, index + 1).join('/')
+        const node = nodes.get(path) ?? { path, label, bookmarkIds: new Set<string>(), childPaths: new Set<string>() }
+        node.bookmarkIds.add(entry.id)
+        nodes.set(path, node)
+        if (index > 0) nodes.get(parts.slice(0, index).join('/'))?.childPaths.add(path)
+      })
     })
   })
-  return [...counts].map(([name, count]) => ({ name, count }))
+
+  const toNode = (path: string): TagTreeNode => {
+    const node = nodes.get(path)!
+    return {
+      path: node.path,
+      label: node.label,
+      count: node.bookmarkIds.size,
+      children: [...node.childPaths]
+        .sort((left, right) => nodes.get(left)!.label.localeCompare(nodes.get(right)!.label, 'zh-CN'))
+        .map(toNode),
+    }
+  }
+
+  return [...nodes.values()]
+    .filter((node) => !node.path.includes('/'))
+    .sort((left, right) => left.label.localeCompare(right.label, 'zh-CN'))
+    .map((node) => toNode(node.path))
+}
+
+const flattenTagTree = (tree: TagTreeNode[]): TagTreeNode[] => tree.flatMap((node) => [node, ...flattenTagTree(node.children)])
+
+const bookmarkTagCounts = (bookmarks: Bookmark[]) => {
+  return flattenTagTree(buildTagTree(bookmarks)).map(({ path: name, count }) => ({ name, count }))
 }
 
 const mergeTags = (current: string[], input: string) => {
@@ -172,7 +214,7 @@ function App() {
 
   useEffect(() => {
     if (scope.type !== 'tag') return
-    if (store.bookmarks.some((bookmark) => bookmark.tags.includes(scope.tag))) return
+    if (store.bookmarks.some((bookmark) => bookmark.tags.some((tag) => tagIsInBranch(tag, scope.tag)))) return
     setScope({ type: 'all' })
   }, [store.bookmarks, scope])
 
@@ -471,7 +513,7 @@ function App() {
   const filtered = useMemo(() => {
     let items = store.bookmarks.filter((bookmark) => {
       if (scope.type === 'starred' && !bookmark.starred) return false
-      if (scope.type === 'tag' && !bookmark.tags.includes(scope.tag)) return false
+      if (scope.type === 'tag' && !bookmark.tags.some((tag) => tagIsInBranch(tag, scope.tag))) return false
       if (status !== 'all' && bookmark.readStatus !== status) return false
       return true
     })
@@ -488,7 +530,7 @@ function App() {
     return +new Date(b.deletedAt) - +new Date(a.deletedAt)
   }), [store.trash, sort])
 
-  const scopeTitle = scope.type === 'all' ? '资料库' : scope.type === 'starred' ? '收藏' : scope.type === 'trash' ? '回收站' : scope.tag
+  const scopeTitle = scope.type === 'all' ? '资料库' : scope.type === 'starred' ? '收藏' : scope.type === 'trash' ? '回收站' : formatTagPath(scope.tag)
   const previewBookmark = previewId ? store.bookmarks.find((bookmark) => bookmark.id === previewId) ?? null : null
   const counts = {
     all: store.bookmarks.length,
@@ -744,7 +786,17 @@ function Sidebar({ store, scope, view, onNavigate, onSettings }: {
   onNavigate: (scope: LibraryScope) => void
   onSettings: () => void
 }) {
-  const usedTags = useMemo(() => bookmarkTagCounts(store.bookmarks), [store.bookmarks])
+  const tagTree = useMemo(() => buildTagTree(store.bookmarks), [store.bookmarks])
+  const [collapsedTags, setCollapsedTags] = useState<Set<string>>(() => new Set())
+
+  const toggleTag = (path: string) => {
+    setCollapsedTags((previous) => {
+      const next = new Set(previous)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }
 
   return (
     <aside className="sidebar">
@@ -763,14 +815,70 @@ function Sidebar({ store, scope, view, onNavigate, onSettings }: {
       <div className="sidebar-divider" />
       <div className="tag-nav">
         <div className="sidebar-label">标签</div>
-        {usedTags.map((tag) => (
-          <button key={tag.name} className={view === 'library' && scope.type === 'tag' && scope.tag === tag.name ? 'active' : ''} onClick={() => onNavigate({ type: 'tag', tag: tag.name })}>
-            <Tag /><span>{tag.name}</span><em>{tag.count}</em>
-          </button>
-        ))}
+        <div className="tag-tree">
+          {tagTree.map((tag) => (
+            <SidebarTagNode
+              key={tag.path}
+              node={tag}
+              depth={0}
+              collapsedTags={collapsedTags}
+              activeTag={view === 'library' && scope.type === 'tag' ? scope.tag : null}
+              onToggle={toggleTag}
+              onNavigate={(path) => onNavigate({ type: 'tag', tag: path })}
+            />
+          ))}
+        </div>
       </div>
       <button className="settings-button" onClick={onSettings}><Settings /><span>设置</span></button>
     </aside>
+  )
+}
+
+function SidebarTagNode({ node, depth, collapsedTags, activeTag, onToggle, onNavigate }: {
+  node: TagTreeNode
+  depth: number
+  collapsedTags: Set<string>
+  activeTag: string | null
+  onToggle: (path: string) => void
+  onNavigate: (path: string) => void
+}) {
+  const hasChildren = node.children.length > 0
+  const collapsed = collapsedTags.has(node.path)
+  return (
+    <div className="tag-tree-node">
+      <div className={`tag-tree-row ${activeTag === node.path ? 'active' : ''}`} style={{ '--tag-depth': depth } as React.CSSProperties}>
+        {hasChildren ? (
+          <button
+            className="tag-disclosure"
+            onClick={() => onToggle(node.path)}
+            aria-label={`${collapsed ? '展开' : '收起'} ${node.label}`}
+            aria-expanded={!collapsed}
+          >
+            {collapsed ? <ChevronRight /> : <ChevronDown />}
+          </button>
+        ) : <span className="tag-disclosure-spacer" />}
+        <button className="tag-tree-link" onClick={() => onNavigate(node.path)} title={formatTagPath(node.path)}>
+          <Tag />
+          <span>{node.label}</span>
+          <em>{node.count}</em>
+        </button>
+      </div>
+      {hasChildren && !collapsed && (
+        <div className="tag-tree-children" style={{ '--tag-depth': depth } as React.CSSProperties}>
+          {node.children.map((child) => (
+            <SidebarTagNode
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              collapsedTags={collapsedTags}
+              activeTag={activeTag}
+              onToggle={onToggle}
+              onNavigate={onNavigate}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -807,7 +915,7 @@ function BookmarkCard({ bookmark, menuOpen, onOpen, onPreview, onToggleStar, onT
         <button className="entry-title" onClick={onOpen}><h3>{bookmark.title}</h3></button>
         <p>{bookmark.description}</p>
         <div className="entry-detail-row">
-          <div className="tag-row">{bookmark.tags.map((tagName) => <span key={tagName}># {tagName}</span>)}</div>
+          <div className="tag-row">{bookmark.tags.map((tagName) => <span key={tagName}># {formatTagPath(tagName)}</span>)}</div>
           <div className="entry-meta">
             <span className="entry-date">保存于 {formatDate(bookmark.savedAt)}</span>
             {bookmark.progress > 0 && <span className="progress-value">已阅读 {Math.round(bookmark.progress)}%</span>}
@@ -1052,7 +1160,7 @@ function TrashCard({ bookmark, onRestore, onDelete }: {
         <h3>{bookmark.title}</h3>
         <p>{bookmark.description}</p>
         <div className="trash-card-meta">
-          <span>{bookmark.tags.length ? bookmark.tags.map((tag) => `# ${tag}`).join('　') : '无标签'}</span>
+          <span>{bookmark.tags.length ? bookmark.tags.map((tag) => `# ${formatTagPath(tag)}`).join('　') : '无标签'}</span>
           <span>{bookmark.annotations.length} 条页边笔记</span>
         </div>
       </div>
@@ -1225,10 +1333,29 @@ function TagEditor({ value, suggestions, onChange, className = '' }: {
   className?: string
 }) {
   const [draft, setDraft] = useState('')
-  const available = suggestions.filter((tag) => !value.includes(tag))
+  const suggestionTree = useMemo(
+    () => buildTagTree(suggestions.map((tag, index) => ({ id: `${index}`, tags: [tag] }))),
+    [suggestions],
+  )
+  const normalizedDraft = normalizeTagPath(draft)
+  const available = flattenTagTree(suggestionTree).filter((tag) => {
+    if (value.includes(tag.path)) return false
+    if (!normalizedDraft) return true
+    return tag.path.toLocaleLowerCase().includes(normalizedDraft.toLocaleLowerCase())
+      || tag.label.toLocaleLowerCase().includes(normalizedDraft.toLocaleLowerCase())
+  })
+  const canCreate = Boolean(normalizedDraft)
+    && !suggestions.includes(normalizedDraft)
+    && !value.includes(normalizedDraft)
+
   const commitDraft = () => {
-    if (!draft.trim()) return
+    if (!normalizedDraft) return
     onChange(mergeTags(value, draft))
+    setDraft('')
+  }
+
+  const selectTag = (tag: string) => {
+    onChange(normalizeTags([...value, tag]))
     setDraft('')
   }
 
@@ -1237,7 +1364,7 @@ function TagEditor({ value, suggestions, onChange, className = '' }: {
       <div className="tag-entry">
         {value.map((tag) => (
           <button type="button" className="tag-chip" key={tag} onClick={() => onChange(value.filter((item) => item !== tag))} title={`移除标签 ${tag}`}>
-            <span>{tag}</span><X />
+            <span>{formatTagPath(tag)}</span><X />
           </button>
         ))}
         <input
@@ -1253,17 +1380,35 @@ function TagEditor({ value, suggestions, onChange, className = '' }: {
               onChange(value.slice(0, -1))
             }
           }}
-          placeholder={value.length ? '继续输入标签…' : '输入任意标签，按 Enter 添加'}
+          placeholder={value.length ? '继续输入标签路径…' : '输入标签，如 Agent/架构'}
           aria-label="输入标签"
         />
       </div>
-      {available.length > 0 && (
-        <div className="tag-suggestions">
-          <span>已有标签</span>
-          {available.map((tag) => <button type="button" key={tag} onMouseDown={(event) => event.preventDefault()} onClick={() => onChange([...value, tag])}>{tag}</button>)}
+      {canCreate && (
+        <div className="tag-create-row">
+          <button type="button" className="tag-create-option" onMouseDown={(event) => event.preventDefault()} onClick={commitDraft}>
+            <Plus />
+            <span>创建 <strong>{formatTagPath(normalizedDraft)}</strong></span>
+            <em>{tagPathParts(normalizedDraft).length > 1 ? `${tagPathParts(normalizedDraft).length} 级标签` : '一级标签'}</em>
+          </button>
         </div>
       )}
-      <p>按 Enter 添加，也可以用逗号分隔多个标签</p>
+      {available.length > 0 && (
+        <div className="tag-suggestions" aria-label={normalizedDraft ? '匹配的标签' : '已有标签'}>
+          <span>{normalizedDraft ? '匹配标签' : '已有标签'}</span>
+          {available.map((tag) => (
+            <button
+              type="button"
+              key={tag.path}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => selectTag(tag.path)}
+            >
+              {formatTagPath(tag.path)}
+            </button>
+          ))}
+        </div>
+      )}
+      <p>用“/”创建层级，例如 Agent/架构；按 Enter 添加，逗号可分隔多个标签</p>
     </div>
   )
 }
